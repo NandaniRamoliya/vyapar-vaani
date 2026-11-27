@@ -163,7 +163,7 @@ class NLPParser:
                     break
 
         # Extract Product Name
-        product_name = "Shirts"
+        product_name = "Cotton Shirts"
         product_keywords = {
             "shirts": "Cotton Shirts",
             "shirt": "Cotton Shirts",
@@ -175,15 +175,29 @@ class NLPParser:
             "t-shirts": "Polo T-Shirts",
             "pants": "Formal Pants",
             "dress": "Dress Material",
+            "dupatta": "Silk Dupatta",
+            "bedsheet": "Cotton Bedsheets",
+            "bedsheets": "Cotton Bedsheets",
+            "fabric": "Textile Fabric",
             "શર્ટ": "કોટન શર્ટ",
             "સાડી": "ડિઝાઇનર સાડી",
             "कुर्ती": "कॉटन कुर्ती",
             "शर्ट्स": "शर्ट्स",
         }
+        matched_product = False
         for kw, clean_name in product_keywords.items():
             if kw in lower or kw in raw:
                 product_name = clean_name
+                matched_product = True
                 break
+
+        # Dynamic fallback: if quantity was followed by a word, use that as product
+        if not matched_product:
+            dyn_match = re.search(r"\b\d+\b\s+([A-Za-z]+)", raw)
+            if dyn_match:
+                candidate = dyn_match.group(1).capitalize()
+                if candidate.lower() not in ["rupees", "rs", "inr", "for", "total", "at", "to"]:
+                    product_name = candidate
 
         extracted_data = {
             "customer_name": customer_name,

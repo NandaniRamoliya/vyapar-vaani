@@ -48,8 +48,23 @@ export const api = {
     return data.data || [];
   },
 
+  async createOrder(order: Partial<Order>): Promise<Order> {
+    const res = await fetch(`${API_BASE}/orders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(order),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message || 'Failed to create order');
+    return data.data;
+  },
+
   async updateOrderStatus(orderId: string, status: string): Promise<void> {
     await fetch(`${API_BASE}/orders/${orderId}/status?status=${status}`, { method: 'PATCH' });
+  },
+
+  async deleteOrder(orderId: string): Promise<void> {
+    await fetch(`${API_BASE}/orders/${orderId}`, { method: 'DELETE' });
   },
 
   async getCustomers(search?: string): Promise<Customer[]> {
@@ -60,6 +75,17 @@ export const api = {
     return data.data || [];
   },
 
+  async createCustomer(customer: Partial<Customer>): Promise<Customer> {
+    const res = await fetch(`${API_BASE}/customers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(customer),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message || 'Failed to create customer');
+    return data.data;
+  },
+
   async getReminders(status?: string): Promise<Reminder[]> {
     const params = new URLSearchParams();
     if (status && status !== 'all') params.append('status', status);
@@ -68,10 +94,25 @@ export const api = {
     return data.data || [];
   },
 
+  async createReminder(reminder: Partial<Reminder>): Promise<Reminder> {
+    const res = await fetch(`${API_BASE}/reminders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(reminder),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message || 'Failed to create reminder');
+    return data.data;
+  },
+
   async toggleReminder(reminderId: string): Promise<string> {
     const res = await fetch(`${API_BASE}/reminders/${reminderId}/toggle`, { method: 'PATCH' });
     const data = await res.json();
     return data.data.status;
+  },
+
+  async deleteReminder(reminderId: string): Promise<void> {
+    await fetch(`${API_BASE}/reminders/${reminderId}`, { method: 'DELETE' });
   },
 
   async getVoiceHistory(): Promise<VoiceInteraction[]> {

@@ -99,6 +99,7 @@ export function App() {
               {currentTab === 'customers' && (
                 <CustomersTab
                   customers={customers}
+                  onRefresh={loadAllData}
                   onOpenVoice={() => setIsVoiceOpen(true)}
                 />
               )}
