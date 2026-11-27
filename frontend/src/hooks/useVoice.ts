@@ -94,10 +94,10 @@ export function useVoice({ language, onFinalTranscript }: UseVoiceOptions) {
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
     }
-    // Automatically finalize after 1.8 seconds of quiet speech
+    // Automatically finalize after 2.2 seconds of silence/pause
     silenceTimerRef.current = setTimeout(() => {
       finalizeSpeech();
-    }, 1800);
+    }, 2200);
   }, [finalizeSpeech]);
 
   const startListening = useCallback(async () => {

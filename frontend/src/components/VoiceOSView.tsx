@@ -8,19 +8,14 @@ import {
   CheckCircle2, 
   MessageCircle, 
   Store, 
-  ArrowRight, 
-  IndianRupee, 
-  Package, 
-  User, 
-  Clock, 
-  Send,
   TrendingUp,
   AlertCircle,
-  RotateCcw,
-  Zap
+  Zap,
+  Check,
+  X
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { Order, LanguageCode } from '../types';
+import { Order, LanguageCode, VoiceProcessResult } from '../types';
 import { useVoice } from '../hooks/useVoice';
 import { api } from '../services/api';
 import { playSoundboxChime } from '../utils/soundboxChime';
@@ -35,9 +30,10 @@ interface MessageItem {
   id: string;
   sender: 'user' | 'assistant';
   text: string;
-  type?: 'order_receipt' | 'stats_summary' | 'reminder_card' | 'general';
+  type?: 'order_receipt' | 'confirmation_card' | 'stats_summary' | 'reminder_card' | 'general';
   orderData?: Partial<Order>;
   statsData?: any;
+  pendingResult?: VoiceProcessResult;
   timestamp: string;
 }
 
@@ -46,12 +42,13 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({ onRefreshData }) => {
     {
       id: 'welcome_1',
       sender: 'assistant',
-      text: 'Namaste! I am your VyaparVaani voice assistant. Tap the mic and speak your order in one go (e.g. "Add an order for Rahul. 20 shirts, total 15000 rupees") or ask "How much did I sell today?".',
+      text: 'Namaste! I am your VyaparVaani voice assistant. Tap the mic and speak your order in English (e.g. "Add an order for Rahul. 20 shirts, total 15000 rupees"). I will verify the details with you before saving!',
       timestamp: 'Just now',
     }
   ]);
 
-  const [stage, setStage] = useState<'idle' | 'listening' | 'processing'>('idle');
+  const [stage, setStage] = useState<'idle' | 'listening' | 'processing' | 'confirming'>('idle');
+  const [activePendingResult, setActivePendingResult] = useState<VoiceProcessResult | null>(null);
   const [ttsEnabled, setTtsEnabled] = useState(true);
   const [manualText, setManualText] = useState('');
   const isProcessingRef = useRef(false);
@@ -72,19 +69,20 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({ onRefreshData }) => {
     speak,
     stopSpeaking,
   } = useVoice({
-    language: 'en-IN', // 100% locked to reliable English (India)
+    language: 'en-IN',
     onFinalTranscript: handleFinalSpeech,
   });
 
+  // Synchronize stage with listening state
   useEffect(() => {
     if (isListening) {
       setStage('listening');
     } else if (stage === 'listening') {
       setStage('idle');
     }
-  }, [isListening]);
+  }, [isListening, stage]);
 
-  // 1-Step Instant Execution: Process, Save to DB, Chime, and Speak in ONE GO!
+  // Handle Voice Processing with Confirmation Check
   const executeVoiceCommand = async (rawText: string) => {
     const clean = rawText ? rawText.trim() : '';
     if (!clean || isProcessingRef.current) return;
@@ -101,48 +99,35 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({ onRefreshData }) => {
     setStage('processing');
 
     try {
-      // autoExecute = true commits directly to SQLite in this single step!
-      const result = await api.processVoice(clean, 'en-IN', true);
-      setStage('idle');
+      // Step 1: Parse without immediate auto_execute so user can confirm
+      const result = await api.processVoice(clean, 'en-IN', false);
 
-      // Authentic Soundbox Chime 🔔
-      playSoundboxChime();
+      if (result.confirmation_required) {
+        // Confirmation Needed: Show Confirmation Card & Ask in Voice
+        setStage('confirming');
+        setActivePendingResult(result);
 
-      if (result.intent === 'create_order') {
-        // Confetti celebration!
-        confetti({
-          particleCount: 80,
-          spread: 70,
-          origin: { y: 0.6 },
-        });
+        const promptText = result.confirmation_prompt || 
+          `Please confirm: add order for ${result.extracted_data.customer_name || 'Customer'}, ${result.extracted_data.quantity || 1} ${result.extracted_data.product_name || 'items'} for ${result.extracted_data.total_amount || 0} rupees. Is this correct?`;
 
-        const orderInfo = result.executed_result || result.extracted_data;
-
-        if (ttsEnabled && result.spoken_response) {
-          speak(result.spoken_response, 'en-IN');
+        if (ttsEnabled) {
+          speak(promptText, 'en-IN');
         }
 
         setMessages((prev) => [
           ...prev,
           {
-            id: `a_${Date.now()}`,
+            id: `c_${Date.now()}`,
             sender: 'assistant',
-            text: result.spoken_response,
-            type: 'order_receipt',
-            orderData: {
-              customer_name: orderInfo.customer_name,
-              product_name: orderInfo.product_name,
-              quantity: orderInfo.quantity,
-              total_amount: orderInfo.total_amount,
-              status: 'confirmed',
-              id: orderInfo.order_id || 'ORD-NEW',
-              created_at: new Date().toLocaleDateString('en-IN'),
-            },
+            text: promptText,
+            type: 'confirmation_card',
+            pendingResult: result,
             timestamp: nowTime,
           },
         ]);
       } else {
-        // Direct Query or Reminder or Customer
+        // Direct Query (e.g. Sales stats or pending orders)
+        setStage('idle');
         if (ttsEnabled && result.spoken_response) {
           speak(result.spoken_response, 'en-IN');
         }
@@ -158,9 +143,8 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({ onRefreshData }) => {
             timestamp: nowTime,
           },
         ]);
+        if (onRefreshData) onRefreshData();
       }
-
-      if (onRefreshData) onRefreshData();
     } catch (err: any) {
       console.error(err);
       setStage('idle');
@@ -178,15 +162,102 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({ onRefreshData }) => {
     }
   };
 
+  // Confirm or Cancel the pending order
+  const handleConfirmOrder = async (confirmed: boolean, targetResult?: VoiceProcessResult) => {
+    const toConfirm = targetResult || activePendingResult;
+    if (!toConfirm) return;
+
+    if (isSpeaking) stopSpeaking();
+    setStage('processing');
+
+    const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    try {
+      const response = await api.confirmVoiceAction(toConfirm.interaction_id, confirmed);
+      setStage('idle');
+      setActivePendingResult(null);
+
+      if (confirmed) {
+        // Authentic Soundbox Chime 🔔
+        playSoundboxChime();
+
+        // Confetti celebration!
+        confetti({
+          particleCount: 80,
+          spread: 70,
+          origin: { y: 0.6 },
+        });
+
+        if (ttsEnabled && response.spoken_response) {
+          speak(response.spoken_response, 'en-IN');
+        }
+
+        const orderInfo = toConfirm.extracted_data;
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `a_${Date.now()}`,
+            sender: 'assistant',
+            text: response.spoken_response || 'Order confirmed and saved successfully!',
+            type: 'order_receipt',
+            orderData: {
+              customer_name: orderInfo.customer_name || 'Customer',
+              product_name: orderInfo.product_name || 'Goods',
+              quantity: orderInfo.quantity || 1,
+              total_amount: orderInfo.total_amount || 0,
+              status: 'confirmed',
+              id: 'ORD-SAVED',
+              created_at: new Date().toLocaleDateString('en-IN'),
+            },
+            timestamp: nowTime,
+          },
+        ]);
+
+        if (onRefreshData) onRefreshData();
+      } else {
+        if (ttsEnabled && response.spoken_response) {
+          speak(response.spoken_response, 'en-IN');
+        }
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `a_${Date.now()}`,
+            sender: 'assistant',
+            text: 'Action cancelled. No order was recorded. Feel free to speak again.',
+            timestamp: nowTime,
+          },
+        ]);
+      }
+    } catch (e) {
+      console.error(e);
+      setStage('idle');
+      setActivePendingResult(null);
+    }
+  };
+
+  // Direct WhatsApp sharing
   const handleSendWhatsApp = (order: Partial<Order>) => {
     const text = encodeURIComponent(
-      `Namaste *${order.customer_name}*,\n\nYour order details from *Nandani Textiles, Surat*:\n• *Product:* ${order.product_name}\n• *Quantity:* ${order.quantity} units\n• *Amount:* ₹${Number(order.total_amount || 0).toLocaleString('en-IN')}\n• *Status:* CONFIRMED\n\nThank you for doing business with us!`
+      `*VYAPAR VAANI INVOICE SLIP*\n` +
+      `━━━━━━━━━━━━━━━━━━━\n` +
+      `Customer: ${order.customer_name || 'Valued Customer'}\n` +
+      `Item: ${order.product_name || 'Items'}\n` +
+      `Quantity: ${order.quantity || 1} units\n` +
+      `Total: Rs. ${Number(order.total_amount || 0).toLocaleString('en-IN')}\n` +
+      `Status: Confirmed\n` +
+      `━━━━━━━━━━━━━━━━━━━\n` +
+      `Nandani Textiles • Surat Wholesale Market\n` +
+      `Thank you for doing business with us!`
     );
-    window.open(`https://wa.me/?text=${text}`, '_blank');
+    window.open(`https://wa.me/919876543210?text=${text}`, '_blank');
   };
 
   const handleUndoOrder = async (orderId?: string) => {
-    if (!orderId) return;
+    if (!orderId || orderId === 'ORD-NEW' || orderId === 'ORD-SAVED') {
+      alert('Order cancelled from screen.');
+      return;
+    }
     try {
       await api.deleteOrder(orderId);
       if (onRefreshData) onRefreshData();
@@ -214,9 +285,9 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({ onRefreshData }) => {
           <div>
             <div className="flex items-center space-x-2">
               <h2 className="font-bold text-slate-900 text-sm tracking-tight">Nandani Textiles</h2>
-              <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <Zap className="w-3 h-3 text-emerald-600" />
-                <span>Instant 1-Step Voice</span>
+              <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                <Zap className="w-3 h-3 text-indigo-600" />
+                <span>Verified Voice Confirmation</span>
               </span>
             </div>
             <p className="text-xs text-slate-500">Surat Wholesale Market • English Voice OS</p>
@@ -293,19 +364,19 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({ onRefreshData }) => {
           {stage === 'listening' ? (
             <div>
               <p className="text-xs uppercase tracking-wider text-rose-300 font-bold mb-1">
-                Listening...
+                Listening (2s pause detection)...
               </p>
               <h3 className="text-lg font-bold text-white min-h-[30px]">
                 {interimTranscript || transcript || 'Speak your order now...'}
               </h3>
-              <p className="text-[11px] text-slate-400 mt-1">Stop speaking to auto-save, or tap to finish</p>
+              <p className="text-[11px] text-slate-400 mt-1">Pausing for 2 seconds will finalize your speech</p>
             </div>
           ) : stage === 'processing' ? (
             <div>
               <p className="text-xs uppercase tracking-wider text-indigo-300 font-bold mb-1">
-                Processing Order...
+                Analyzing Speech...
               </p>
-              <h3 className="text-lg font-bold text-white">Saving to database & generating bill...</h3>
+              <h3 className="text-lg font-bold text-white">Extracting customer, items, and total amount...</h3>
             </div>
           ) : (
             <div>
@@ -313,7 +384,7 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({ onRefreshData }) => {
                 Tap microphone to speak
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                Say your order in one sentence: "Add an order for Rahul. 20 shirts, total 15000 rupees"
+                Say: "Add an order for Rahul. 20 shirts, total 15000 rupees"
               </p>
             </div>
           )}
@@ -339,44 +410,109 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({ onRefreshData }) => {
               onClick={() => executeVoiceCommand(chip.text)}
               className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-indigo-50/80 hover:border-indigo-300 text-xs font-semibold text-slate-800 transition-all cursor-pointer flex items-center space-x-1.5 shadow-2xs"
             >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
               <span>{chip.label}</span>
-              <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
             </button>
           ))}
         </div>
       </div>
 
-      {/* Live Conversational Stream & Digital Bill Receipts */}
-      <div className="flex-1 bg-white rounded-3xl border border-slate-200 p-4 shadow-xs overflow-y-auto space-y-3 min-h-[250px]">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-            Voice Stream & Instant Bills
-          </span>
-          <span className="text-[11px] font-mono text-slate-400">Live Transaction Feed</span>
+      {/* Voice Timeline Feed / Kaccha Bill Output */}
+      <div className="flex-1 bg-white rounded-3xl border border-slate-200 p-6 overflow-y-auto space-y-4 min-h-[300px] shadow-xs">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex items-center space-x-2">
+            <span className="font-bold text-xs uppercase tracking-wider text-slate-400">Voice Activity Feed</span>
+            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold">Live</span>
+          </div>
+          <span className="text-xs text-slate-400 font-medium">Automatic Bharat Ledger</span>
         </div>
 
         {messages.map((m) => (
           <div
             key={m.id}
-            className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'} animate-in fade-in duration-200`}
+            className={`flex flex-col ${
+              m.sender === 'user' ? 'items-end' : 'items-start'
+            } animate-in fade-in duration-200`}
           >
-            {/* Spoken Text Bubble */}
+            {/* Standard Message Bubble */}
             <div
-              className={`max-w-md rounded-2xl p-3 text-xs ${
+              className={`max-w-md px-4 py-3 rounded-2xl text-xs font-medium leading-relaxed ${
                 m.sender === 'user'
-                  ? 'bg-indigo-600 text-white rounded-tr-xs'
-                  : 'bg-slate-100 text-slate-900 rounded-tl-xs border border-slate-200'
+                  ? 'bg-indigo-600 text-white rounded-br-xs shadow-xs'
+                  : 'bg-slate-100 text-slate-800 rounded-bl-xs border border-slate-200/60'
               }`}
             >
-              <p className="font-medium leading-relaxed">{m.text}</p>
+              <p>{m.text}</p>
+              <span
+                className={`block text-[9px] mt-1 text-right ${
+                  m.sender === 'user' ? 'text-indigo-200' : 'text-slate-400'
+                }`}
+              >
+                {m.timestamp}
+              </span>
             </div>
-            <span className="text-[10px] text-slate-400 mt-1 px-1">{m.timestamp}</span>
 
-            {/* Instant Digital Bill Slip on Screen! */}
+            {/* CONFIRMATION CARD (Step to verify details with user) */}
+            {m.type === 'confirmation_card' && m.pendingResult && (
+              <div className="mt-3 w-full max-w-sm bg-indigo-50/90 border-2 border-indigo-200 rounded-2xl p-4 text-xs font-sans shadow-md animate-in zoom-in-95">
+                <div className="flex items-center justify-between pb-2 mb-2 border-b border-indigo-200">
+                  <div className="flex items-center space-x-1.5 text-indigo-900 font-bold">
+                    <Sparkles className="w-4 h-4 text-indigo-600" />
+                    <span>Please Confirm Order Details</span>
+                  </div>
+                  <span className="text-[10px] bg-indigo-200/60 text-indigo-800 font-bold px-2 py-0.5 rounded-full">
+                    Awaiting You
+                  </span>
+                </div>
+
+                <div className="space-y-1.5 mb-3 text-slate-700">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Customer:</span>
+                    <span className="font-bold text-slate-900">{m.pendingResult.extracted_data.customer_name || 'Rahul'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Item:</span>
+                    <span className="font-semibold text-slate-800">{m.pendingResult.extracted_data.product_name || 'Goods'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Quantity:</span>
+                    <span className="font-bold text-slate-800">{m.pendingResult.extracted_data.quantity || 1} Units</span>
+                  </div>
+                  <div className="flex justify-between pt-1 border-t border-indigo-200 text-sm font-black text-slate-900">
+                    <span>Total Amount:</span>
+                    <span className="text-indigo-700">₹{Number(m.pendingResult.extracted_data.total_amount || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                </div>
+
+                {/* Yes / No Confirmation Buttons */}
+                <div className="flex items-center space-x-2 pt-1">
+                  <button
+                    onClick={() => handleConfirmOrder(false, m.pendingResult)}
+                    className="flex-1 flex items-center justify-center space-x-1.5 py-2 px-3 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5 text-red-500" />
+                    <span>Cancel / Edit</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleConfirmOrder(true, m.pendingResult)}
+                    className="flex-1 flex items-center justify-center space-x-1.5 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>Yes, Save Order</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* If Order Confirmed: Render Kaccha Bill Receipt Slip */}
             {m.type === 'order_receipt' && m.orderData && (
-              <div className="mt-2 w-full max-w-sm bg-amber-50/90 border-2 border-dashed border-amber-300 rounded-2xl p-4 shadow-xs font-mono text-xs text-slate-800">
-                <div className="text-center pb-2 border-b border-amber-200 mb-2">
-                  <h4 className="font-bold text-sm tracking-tight text-slate-900 font-sans">NANDANI TEXTILES</h4>
+              <div className="mt-3 w-full max-w-sm bg-amber-50/80 border border-amber-200/80 rounded-2xl p-4 text-xs font-mono shadow-md relative overflow-hidden animate-in zoom-in-95">
+                <div className="text-center pb-3 border-b border-amber-200 mb-3">
+                  <div className="flex items-center justify-center space-x-1.5 text-slate-900 font-bold text-sm">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>NANDANI TEXTILES</span>
+                  </div>
                   <p className="text-[10px] text-slate-500 font-sans">Surat Wholesale Market • Verified Order Slip</p>
                   <p className="text-[10px] text-slate-400">Slip #{m.orderData.id} • {m.orderData.created_at}</p>
                 </div>
@@ -467,7 +603,7 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({ onRefreshData }) => {
           }}
           className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-colors cursor-pointer"
         >
-          <Send className="w-3.5 h-3.5" />
+          <Sparkles className="w-3.5 h-3.5" />
         </button>
       </div>
 
