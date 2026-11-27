@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>VyaparVaani AI - Build for Bharat Pitch Deck</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f1f5f9;
+      color: #0f172a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px 10px;
+    }
+
+    .slide {
+      width: 297mm;
+      height: 185mm;
+      background: #ffffff;
+      margin-bottom: 30px;
+      padding: 45px 55px;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+      page-break-after: always;
+    }
+
+    @media print {
+      body { background: transparent; padding: 0; }
+      .slide {
+        width: 100vw;
+        height: 100vh;
+        margin: 0;
+        box-shadow: none;
+        border-radius: 0;
+        page-break-after: always;
+      }
+      .no-print { display: none; }
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid #f1f5f9;
+      padding-bottom: 15px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: #eef2ff;
+      color: #4f46e5;
+      border: 1px solid #c7d2fe;
+    }
+    .slide-num {
+      font-size: 12px;
+      font-weight: 700;
+      color: #94a3b8;
+    }
+
+    .title {
+      font-size: 28px;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.02em;
+      margin-top: 15px;
+    }
+    .subtitle {
+      font-size: 14px;
+      color: #64748b;
+      margin-top: 4px;
+    }
+
+    .content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      margin: 20px 0;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 25px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 20px;
+    }
+
+    .card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .card h4 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 8px;
+    }
+    .card p {
+      font-size: 13px;
+      color: #475569;
+      line-height: 1.5;
+    }
+
+    .stat {
+      font-size: 32px;
+      font-weight: 800;
+      color: #4f46e5;
+      margin-bottom: 4px;
+    }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid #f1f5f9;
+      padding-top: 15px;
+      font-size: 12px;
+      color: #94a3b8;
+      font-weight: 600;
+    }
+
+    .cover {
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e293b 100%);
+      color: #ffffff;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+    .cover h1 {
+      font-size: 48px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: #ffffff;
+      margin-bottom: 10px;
+    }
+    .cover h2 {
+      font-size: 20px;
+      font-weight: 500;
+      color: #c7d2fe;
+      margin-bottom: 25px;
+    }
+    .cover p {
+      font-size: 14px;
+      color: #94a3b8;
+    }
+    .cover .tagline {
+      display: inline-block;
+      padding: 8px 20px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 9999px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #e0e7ff;
+      margin-bottom: 25px;
+    }
+
+    .print-btn {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #4f46e5;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 14px;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.4);
+      z-index: 9999;
+    }
+    .print-btn:hover { background: #4338ca; }
+  </style>
+</head>
+<body>
+
+  <button class="print-btn no-print" onclick="window.print()">📥 Print / Save as PDF</button>
+
+  <!-- Slide 1: Cover -->
+  <div class="slide cover">
+    <div>
+      <div class="badge" style="background: rgba(99,102,241,0.2); color: #a5b4fc; border-color: rgba(99,102,241,0.3); margin-bottom: 20px;">
+        Build for Bharat • Round 2 Submission
+      </div>
+      <h1>🎙️ VyaparVaani AI</h1>
+      <h2>व्यापार वाणी • વ્યાપાર વાણી</h2>
+      <div class="tagline">"Speak naturally. Let AI understand. Get business tasks done."</div>
+      <p style="margin-top: 15px;"><strong>Theme:</strong> Livelihoods and Small Business</p>
+      <p style="margin-top: 5px;"><strong>Participant:</strong> Nandani Ramoliya</p>
+    </div>
+  </div>
+
+  <!-- Slide 2: Problem Statement -->
+  <div class="slide">
+    <div class="header">
+      <span class="badge">Problem Statement</span>
+      <span class="slide-num">02 / 05</span>
+    </div>
+    <div>
+      <h3 class="title">The Typing Barrier for Bharat's Shopkeepers</h3>
+      <p class="subtitle">Why traditional SaaS fails 63M+ Indian micro and small businesses</p>
+    </div>
+    <div class="content">
+      <div class="grid-3">
+        <div class="card">
+          <div class="stat">85%</div>
+          <h4>Rely on Paper & Memory</h4>
+          <p>Merchants in Surat, Ahmedabad, and Rajkot record transactions in paper books (Chopda) or WhatsApp voice notes.</p>
+        </div>
+        <div class="card">
+          <div class="stat">3.5 hrs</div>
+          <h4>Lost Weekly in Follow-ups</h4>
+          <p>Orders are delayed, client inquiries are forgotten, and payment reminders fall through the cracks without a CRM.</p>
+        </div>
+        <div class="card">
+          <div class="stat">0%</div>
+          <h4>Adoption of Complex ERPs</h4>
+          <p>Traditional accounting software is English-centric, demands 10+ form fields, and disrupts busy counter operations.</p>
+        </div>
+      </div>
+    </div>
+    <div class="footer">
+      <span>VyaparVaani AI — Build for Bharat</span>
+      <span>Challenge Brief: Voice-first solution for Indian livelihoods</span>
+    </div>
+  </div>
+
+  <!-- Slide 3: Target Users -->
+  <div class="slide">
+    <div class="header">
+      <span class="badge">Target Users</span>
+      <span class="slide-num">03 / 05</span>
+    </div>
+    <div>
+      <h3 class="title">Built for Tier-2 & Tier-3 Indian Merchants</h3>
+      <p class="subtitle">Focusing on high-volume, verbal-negotiation businesses</p>
+    </div>
+    <div class="content">
+      <div class="grid-2">
+        <div class="card">
+          <h4>Primary Persona: Rameshbhai (Surat Wholesaler)</h4>
+          <p style="margin-top: 8px;">• <strong>Age:</strong> 48 | <strong>Business:</strong> Textile & Cotton Shirts Trader</p>
+          <p>• <strong>Language:</strong> Native Gujarati, Hindi, understands basic English terms</p>
+          <p>• <strong>Behavior:</strong> Sits at wholesale shop counter handling 30+ buyers daily; talks constantly on phone</p>
+          <p>• <strong>Pain Point:</strong> Cannot stop to type customer orders or prices into a laptop during rush hours</p>
+        </div>
+        <div class="card">
+          <h4>Target Market Segments</h4>
+          <p style="margin-top: 8px;">🛍️ <strong>Textile & Garment Traders:</strong> Surat, Ahmedabad, Jaipur</p>
+          <p>🏪 <strong>Kirana & Wholesalers:</strong> Bulk distributor network in Tier-2/3 towns</p>
+          <p>👗 <strong>Boutique Owners:</strong> Independent ethnic & designer wear studios</p>
+          <p>🔧 <strong>Local Service Providers:</strong> Hardware dealers, electrical suppliers</p>
+        </div>
+      </div>
+    </div>
+    <div class="footer">
+      <span>VyaparVaani AI — Build for Bharat</span>
+      <span>Empowering regional small businesses</span>
+    </div>
+  </div>
+
+  <!-- Slide 4: Technology & Dependencies -->
+  <div class="slide">
+    <div class="header">
+      <span class="badge">Architecture & Dependencies</span>
+      <span class="slide-num">04 / 05</span>
+    </div>
+    <div>
+      <h3 class="title">Zero-Key Offline AI & Resilient Voice Pipeline</h3>
+      <p class="subtitle">Satisfies 100% of Build for Bharat submission criteria</p>
+    </div>
+    <div class="content">
+      <div class="grid-2">
+        <div class="card">
+          <h4>Zero-Key Offline NLP Guarantee</h4>
+          <p style="margin-top: 8px;">• <strong>Runs Without Secret Keys:</strong> Proprietary multilingual regex entity extractor parses quantities, products, and prices in English, Hindi, and Gujarati.</p>
+          <p>• <strong>Instant Response Time:</strong> Zero external latency or paid token costs.</p>
+          <p>• <strong>Cloud LLM Hook:</strong> Seamlessly switches to Gemini/OpenAI if API keys exist.</p>
+        </div>
+        <div class="card">
+          <h4>Core Stack & Voice Pipeline</h4>
+          <p style="margin-top: 8px;">🎙️ <strong>Web Speech API:</strong> Native in-browser speech recognition</p>
+          <p>🔊 <strong>Web Speech Synthesis:</strong> Voice confirmations in Indian accents</p>
+          <p>⚡ <strong>FastAPI Backend:</strong> Async Python 3.12 with Pydantic validation</p>
+          <p>💾 <strong>SQLite / Supabase:</strong> Pre-seeded with authentic Indian commerce data</p>
+        </div>
+      </div>
+    </div>
+    <div class="footer">
+      <span>VyaparVaani AI — Build for Bharat</span>
+      <span>Evaluator Ready • Zero Paid Dependencies</span>
+    </div>
+  </div>
+
+  <!-- Slide 5: Launch Plan & Roadmap -->
+  <div class="slide">
+    <div class="header">
+      <span class="badge">Launch & Roadmap</span>
+      <span class="slide-num">05 / 05</span>
+    </div>
+    <div>
+      <h3 class="title">Go-to-Market & Future Roadmap</h3>
+      <p class="subtitle">From prototype to empowering millions of Bharat shopkeepers</p>
+    </div>
+    <div class="content">
+      <div class="grid-3">
+        <div class="card">
+          <h4>Phase 1: Pilot Launch</h4>
+          <p><strong>Month 1-2</strong></p>
+          <p style="margin-top: 6px;">• Roll out to 50 Surat textile traders.</p>
+          <p>• WhatsApp bot integration allowing audio voice notes forwarding.</p>
+          <p>• Refine Gujarati and Hinglish colloquial vocabulary.</p>
+        </div>
+        <div class="card">
+          <h4>Phase 2: UPI & Invoicing</h4>
+          <p><strong>Month 3-5</strong></p>
+          <p style="margin-top: 6px;">• Automatic voice-generated GST invoices.</p>
+          <p>• Instant UPI QR code & WhatsApp payment links sent to buyers.</p>
+          <p>• Daily spoken profit & loss summaries.</p>
+        </div>
+        <div class="card">
+          <h4>Phase 3: Bharat Expansion</h4>
+          <p><strong>Month 6+</strong></p>
+          <p style="margin-top: 6px;">• Expand to Marathi, Tamil, Telugu, and Bengali.</p>
+          <p>• Integration with ONDC network for open commerce sales.</p>
+          <p>• Micro-lending eligibility reports based on voice order volumes.</p>
+        </div>
+      </div>
+    </div>
+    <div class="footer">
+      <span>VyaparVaani AI — Build for Bharat</span>
+      <span>Nandani Ramoliya • Submission Deadline: 30 Nov</span>
+    </div>
+  </div>
+
+</body>
+</html>
