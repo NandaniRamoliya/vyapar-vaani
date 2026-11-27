@@ -1,290 +1,137 @@
-# 🎙️ VyaparVaani AI (व्यापार वाणी / વ્યાપાર વાણી)
-### Multilingual Voice-First Business Assistant for Indian Small Businesses
-> **Build for Bharat — Round 2 Build Submission**  
-> **Theme:** Livelihoods and small business  
-> **Participant:** Nandani Ramoliya  
-> **Tagline:** *"Speak naturally. Let AI understand. Get business tasks done."*
+# 🎙️ VyaparVaani: Vaani, the voice munim (व्यापार वाणी / વ્યાપાર વાણી)
+
+> **Build for Bharat · Theme: Livelihoods and small business**
+> **Participant:** Nandani Ramoliya
+>
+> ### *The first khata where the customer's own voice is the signature.*
 
 ---
 
-## 🌟 Executive Summary
+## The problem nobody solved
 
-In India's vibrant Tier-2 and Tier-3 commercial hubs (such as Surat, Ahmedabad, Rajkot, Jaipur, and Indore), millions of small business owners—garment wholesalers, textile merchants, boutique owners, and kirana store proprietors—manage daily business through:
-* **WhatsApp chats and audio voice notes**
-* **Handwritten notebooks (*Chopda*)**
-* **Verbal promises and mental memory**
+Most small-shop business in India runs on **udhar** (credit). Apps like Khatabook digitised the notebook, but the real pain was never the writing. It's the **dispute**:
 
-Traditional business software fails these merchants because it demands complex typing, English fluency, and tedious multi-step form submissions.
+> *"Maine kab liya?"* · *"Itna nahi tha!"* · *"Aapne galat likha hoga."*
 
-**VyaparVaani AI** solves this with a voice-first operating system. Merchants speak in **English, Hindi (हिन्दी / Hinglish), or Gujarati (ગુજરાતી / Gujlish)** to create orders, schedule client follow-up reminders, register new customers, and check daily revenue—hands-free.
+Many customers can't read or sign, so the khata is just the shopkeeper's word against theirs. And the shopkeeper's hands are busy (cutting cloth, packing, counting cash), so typing into an app at the counter doesn't happen anyway.
 
----
+## What Vaani does
 
-## 🔑 Crucial Guarantee: Zero-Key Ready (Runs Out-of-the-Box)
+Vaani is a voice agent for the shop counter that talks like a person. It runs on the phone the shopkeeper already has, in **English, Hindi and Gujarati**.
 
-The project has been engineered specifically to satisfy the **Build for Bharat submission rules**:
-> *"Code on GitHub: Public, and starts without any secret keys."*
-
-* **100% Offline / Zero-Key by Default:** Uses a built-in deterministic multilingual NLP extraction engine. Evaluators and hackathon judges can clone the repository and run it immediately without entering any paid OpenAI or Gemini API keys.
-* **Auto-Seeded Local Storage:** Includes SQLite database pre-seeded with realistic Indian small business records (Rahul Sharma Garments Surat, Priya Patel Ahmedabad Boutique, Suresh Verma Rajkot).
-* **Optional Cloud LLM Hook:** If `GEMINI_API_KEY` or `OPENAI_API_KEY` is provided in `.env`, the system automatically leverages cloud LLMs for free-form intent reasoning.
-
----
-
-## ⚡ The Core Demo Workflow (Voice-to-Order)
-
-The primary demo workflow is fully functional end-to-end:
-
-```
-[Merchants Speaks]
-"Add an order for Rahul. 20 shirts, total 15000 rupees."
-         │
-         ▼
-[Web Speech API Recognition]
-Transcribes spoken audio into text in real time.
-         │
-         ▼
-[VyaparVaani NLP Engine]
-Extracts structured entity parameters:
-{
-  "intent": "create_order",
-  "customer_name": "Rahul Sharma",
-  "product_name": "Cotton Shirts",
-  "quantity": 20,
-  "total_amount": 15000.0
-}
-         │
-         ▼
-[Spoken & Visual Confirmation]
-Assistant prompts via Text-to-Speech & UI:
-"You want to add 20 shirts for Rahul for ₹15,000. Should I save this order?"
-         │
-         ▼
-[User Confirms]
-Merchant says "Yes, save it" or clicks "Yes, Save Order".
-         │
-         ▼
-[Backend Persistence & Dashboard Update]
-Order is validated, written to database, stats update, confetti bursts,
-and assistant replies: "Your order has been saved successfully!"
-```
-
----
-
-## 📒 Khata / Udhar Ledger (Voice Credit Book)
-
-Most small-shop business in India runs on credit. VyaparVaani keeps the merchant's *kaccha khata* by voice:
-
-| Say (English / Hinglish / हिन्दी / ગુજરાતી) | What happens |
+| The shopkeeper says | Vaani does |
 |---|---|
-| "Rahul ko 5000 udhar likho" · "Add ₹5,000 to Priya's udhar" | Asks to confirm, showing the balance **before → after**, then writes a credit entry |
-| "Rahul paid 3000" · "Priya ne 2 hazar jama kiye" · "Received 2,000 from Anjali" | Records a payment and reduces the balance |
-| "How much does Rahul owe me?" · "Rahul ka kitna baaki hai?" · "राहुल का कितना बाकी है" | Speaks the live balance and last payment date |
-| "Who owes me money?" · "Kiska kitna udhar baaki hai" | Lists the highest dues, each with a 1-tap WhatsApp reminder |
-| "Add an order for Priya. 10 sarees, total 12000 rupees **on udhar**" | Saves the order **and** adds it to Priya's khata; undoing the order removes the khata entry too |
+| "Rahul ko udhar likho" | *"Okay, Rahul. How many rupees?"* — asks for what's missing instead of guessing |
+| "5000" | *"Rahul Sharma, ₹5,000 udhar. Balance becomes ₹20,000. Shall I write it?"* |
+| "Haan ji" | Saves it hands-free, then turns to the customer: *"Rahul ji, to confirm, please say: Yes, I have taken ₹5,000 on udhar."* |
+| *(customer speaks)* | Records the customer's voice, **seals it with a SHA-256 fingerprint** and attaches it to that khata entry |
+| "Rahul ka saboot sunao" (weeks later) | *"Here is Rahul ji's own voice from 12 November, for ₹5,000"*, and plays it |
+| "राहुल ने 3000 दिए" | Understands **ने** = Rahul paid (payment), vs **"प्रिया को 2000 दिए"** = you gave Priya credit (udhar) |
+| "उसका कितना बाकी है?" | Remembers who you were just talking about |
+| "ભૂલ થઈ ગઈ, કાઢી નાખો" | Undoes the last entry (but never a voice-signed one) |
+| "આજનો હિસાબ" | Day's sales, udhar given, cash collected, and who to chase tomorrow, in Gujarati |
 
-* First names resolve to the existing customer ("Rahul" → "Rahul Sharma"). Unknown names are flagged **NEW** on the confirmation card before anything is saved.
-* If the amount or name is missing, the assistant asks for it instead of guessing.
-* **Khata tab**: outstanding total, customers with dues, collections this month, per-customer ledger with running balance, manual "Udhar Diya / Payment Mila" entries, and WhatsApp payment reminders/receipts.
-* API: `GET /api/khata`, `GET /api/khata/{customer_id}`, `POST /api/khata/entries`, `DELETE /api/khata/entries/{id}`.
+## Why this is new
 
-## 🙌 Hands-Free Confirmation
+1. **Voice Signature (bol ke khata, bol ke pakka).** The customer confirms udhar in their own voice, and it becomes playable proof that works for people who can't read or write. A typing app cannot copy this.
+2. **Tamper-evident without blockchain or keys.** Every signature stores `SHA-256(audio)` and is **hash-chained** to the previous one (`chain = SHA-256(prev | entry | customer | amount | time | audio_hash)`). Editing a signed amount, swapping a recording, or deleting a signature breaks the chain, and the Khata tab shows **"Tampering detected"**. Signed entries cannot be deleted; you add a payment to balance them, just like a real ledger.
+3. **A real conversation, not a form.** Follow-up questions, memory of the last customer ("uska"), barge-in (tap while it's speaking), spoken yes/no in three languages, natural pauses, and a different phrasing each time.
+4. **Built for Bharat languages, offline-first.** A zero-key engine understands Hindi and Gujarati script **and** Hinglish:
+   - Names in any script match the customer book: राहुल / રાહુલે / Raahul → *Rahul Sharma*
+   - Spoken numbers become digits: *पांच हजार* → 5000, *dedh lakh* → 150000, *સાડા ત્રણ હજાર* → 3500
+   - Grammar decides direction: *ne/ने/-એ* (they paid) vs *ko/को/-ને* (you gave)
+5. **Phone-first.** Big thumb-reach mic, bottom navigation, installable as an app (PWA), share the voice proof straight to WhatsApp through the phone's share sheet, and reminders and receipts in the customer's language.
 
-With **Hands-free ON** (the default in Voice OS), once the assistant has read the confirmation aloud it opens the mic for a short reply:
+## 🔑 Zero secret keys
 
-* **"Yes" / "Haan" / "Theek hai" / "Kar do"** saves it. **"No" / "Nahi" / "Cancel"** cancels. "No" wins if both are heard, so a hesitant reply never saves by accident.
-* An unclear reply gets one re-ask. A full new sentence is treated as a new command, and the pending one is cancelled.
-* Typing "yes" in the text box works the same way, which is handy for judges without a mic.
-* The backend refuses to execute the same voice action twice (HTTP 409), so a spoken "yes" and a button tap cannot double-save.
-
----
-
-## 🛠️ Technology Stack
-
-| Layer | Technology | Purpose |
-| :--- | :--- | :--- |
-| **Frontend** | React 19 + TypeScript + Vite | Blazing fast client rendering, zero SSR hydration delays with Web Speech API |
-| **Styling** | Tailwind CSS v4 + Lucide Icons | Responsive mobile-first SaaS interface with custom soundwave animations |
-| **Backend** | Python 3.12 + FastAPI | High-throughput asynchronous REST APIs, Pydantic schemas, CORS |
-| **Speech-to-Text** | Web Speech API (`SpeechRecognition`) | Native browser speech transcription supporting Indian English, Hindi & Gujarati |
-| **Text-to-Speech** | Web Speech Synthesis API | Spoken audio confirmation in Indian regional accents |
-| **AI Processing** | Multilingual Rule-Engine + LLM Hook | Deterministic zero-key fallback with entity regex tokenization |
-| **Database** | SQLite + Supabase Ready | Zero-setup local SQLite fallback; compatible with Supabase PostgreSQL |
-| **Testing** | Pytest + FastAPI TestClient | 100% passing test coverage for NLP parsing and order lifecycle |
+Clone and run. No API keys are needed and **none are used**: the language engine, the agent, the voice signatures and the hash chain are all local Python. Speech-to-text and text-to-speech use the browser's built-in Web Speech engines. Note that Chrome's speech recognition uses Google's service, so it needs internet; typing works offline.
 
 ---
 
-## 📂 Project Directory Structure
+## 🚀 Run it
 
-```
-vyapar-vaani/
-├── run_app.bat             # One-click Windows launcher (starts backend + frontend)
-├── start_backend.bat       # Starts FastAPI server on http://127.0.0.1:8000
-├── start_frontend.bat      # Starts Vite React dev server on http://localhost:3000
-├── test_backend.bat        # Runs pytest test suite
-├── .env.example            # Environment variables template
-├── .gitignore              # Ignores venv, node_modules, and databases
-├── README.md               # This documentation
-├── backend/
-│   ├── requirements.txt    # FastAPI, uvicorn, pydantic, pytest
-│   ├── .env.example
-│   ├── app/
-│   │   ├── main.py         # App factory, CORS, lifespan database init
-│   │   ├── config.py       # Configuration and fallback toggles
-│   │   ├── database/
-│   │   │   └── db.py       # SQLite schema and sample data seed
-│   │   ├── models/
-│   │   │   └── schemas.py  # Pydantic schemas for orders, customers, stats
-│   │   ├── routers/
-│   │   │   ├── voice.py    # /api/voice/process & /api/voice/confirm
-│   │   │   ├── orders.py   # CRUD for orders & status updates
-│   │   │   ├── customers.py# Customer directory & history
-│   │   │   ├── reminders.py# Follow-up reminders
-│   │   │   ├── dashboard.py# Aggregated sales & metrics
-│   │   │   └── settings_router.py # Zero-key system status
-│   │   └── services/
-│   │       ├── nlp_parser.py     # Multilingual intent & entity parser
-│   │       └── business_logic.py # Order execution and stats aggregation
-│   └── tests/
-│       ├── test_nlp.py     # Multilingual parser test cases
-│       └── test_flow.py    # End-to-end voice-to-order API workflow test
-└── frontend/
-    ├── package.json
-    ├── vite.config.ts      # Proxies /api to http://127.0.0.1:8000
-    ├── src/
-    │   ├── types.ts        # TypeScript data types
-    │   ├── hooks/
-    │   │   └── useVoice.ts # SpeechRecognition & SpeechSynthesis hook
-    │   ├── services/
-    │   │   └── api.ts      # Backend REST client
-    │   ├── components/
-    │   │   ├── Sidebar.tsx
-    │   │   ├── Header.tsx
-    │   │   ├── VoiceAssistantModal.tsx  # Central Hero Voice Interface
-    │   │   ├── DashboardTab.tsx
-    │   │   ├── OrdersTab.tsx
-    │   │   ├── CustomersTab.tsx
-    │   │   ├── RemindersTab.tsx
-    │   │   ├── VoiceHistoryTab.tsx
-    │   │   └── SettingsTab.tsx
-    │   └── App.tsx
-```
-
----
-
-## 🚀 Quickstart Guide
-
-### Option 1: One-Click Launch (Windows)
-Double-click `run_app.bat` or run:
-```cmd
-.\run_app.bat
-```
-*It starts the FastAPI backend on port 8000, the React frontend on port 3000, and opens your browser automatically.*
-
----
-
-### Option 2: Manual Terminal Commands
-
-#### 1. Start Backend (Terminal 1)
+### Laptop
 ```bash
+# Terminal 1
 cd backend
-python -m venv venv
-
-# Windows:
-.\venv\Scripts\activate
-# Linux/macOS:
-# source venv/bin/activate
-
 pip install -r requirements.txt
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+python -m uvicorn app.main:app --port 8000
 ```
-*Backend runs on `http://127.0.0.1:8000` (API Docs available at `http://127.0.0.1:8000/docs`).*
-
-#### 2. Start Frontend (Terminal 2)
 ```bash
+# Terminal 2
 cd frontend
 npm install
-npm run dev -- --port 3000
+npm run dev
 ```
-*Frontend runs on `http://localhost:3000`.*
+Open **http://localhost:3000** in Chrome or Edge. On Windows, `run_app.bat` does both.
+
+### On a phone (recommended for the demo)
+Phones only allow the microphone on **https**, so there is a phone mode:
+```bash
+cd frontend
+npm run phone
+```
+1. Open the `Network: https://192.168.x.x:3000` address on the phone (same Wi-Fi). On Windows, `start_phone.bat` does this.
+2. Accept the one-time certificate warning (**Advanced → Proceed**).
+3. Chrome menu → **Add to Home screen**. Vaani now opens like an app.
+
+Best on **Chrome for Android**, which has Hindi and Gujarati speech built in. Safari on iPhone works for English and Hindi.
 
 ---
 
-## 🧪 Running Automated Tests
+## 🎬 2-minute demo script
 
-Run backend unit and workflow integration tests:
+1. **(0:00) Problem.** "In India, udhar runs on trust and a notebook. When a customer says *'maine kab liya?'*, the shopkeeper has no proof."
+2. **(0:15) Hands-free entry.** Tap the mic once: *"Rahul ko udhar likho."* → Vaani: *"How many rupees?"* → *"5000"* → *"…Shall I write it?"* → *"Haan ji."* No more taps.
+3. **(0:40) Voice signature.** Vaani asks the customer to confirm. A teammate (or a judge) says *"Haan, maine 5000 udhar liye."* The card turns green: **Voice-signed · #fingerprint**.
+4. **(1:00) The dispute.** "Two weeks later Rahul says he never took it." → *"Rahul ka saboot sunao."* → **his own voice plays.** Tap **Share voice proof** → WhatsApp.
+5. **(1:20) Bharat languages.** Switch to हिं: *"राहुल ने 3000 दिए"* → payment. Switch to ગુ: *"આજનો હિસાબ"* → full day summary in Gujarati.
+6. **(1:40) Trust.** Open the Khata tab → **"tamper check passed"**. Explain the hash chain in one line. "Zero API keys. Runs on the phone you already have."
+
+---
+
+## 🧪 Tests
+
 ```bash
 cd backend
-.\venv\Scripts\python -m pytest tests/ -v
+python -m pytest -q        # 57 tests
 ```
-30 tests pass, verifying:
-* English, Hindi and Gujarati order extraction
-* Reminder creation and customer registration
-* Full end-to-end voice process -> confirm -> database write -> dashboard update
-* Khata intents in English / Hinglish / Hindi / Gujarati, amounts like "2 hazar" and "1.5 lakh"
-* Balance before -> after on confirmation, double-confirm protection, udhar orders linked to the khata (and reversed on undo), running balances
+They cover:
+- Multi-turn conversations in English, Hindi and Gujarati
+- Who-paid-whom grammar, pronoun memory, and undo
+- Indic number words and cross-script name matching
+- Voice-signature upload and playback, plus the tamper checks: an edited amount or a swapped recording breaks the chain
+- No double-saving, and orders on udhar linked to the khata
 
----
+## 🧱 Architecture
 
-## 📹 3-Minute YouTube Demo Video Script
+```
+Phone / browser (React 19 + Tailwind, PWA)
+  ├─ Web Speech API  ── speech → text (en-IN / hi-IN / gu-IN), text → speech
+  ├─ MediaRecorder   ── customer's voice signature (auto-stops on silence)
+  └─ VoiceAgent UI   ── keeps conversation context, sends it with every utterance
+                                │  /api/voice/process  {transcript, language, context}
+FastAPI (Python, stateless)     ▼
+  ├─ services/indic.py      ── Indic digits, number words, transliteration, fuzzy names
+  ├─ services/nlp_parser.py ── intents + entities (orders, udhar, payment, proof, undo, hisaab…)
+  ├─ services/agent.py      ── dialogue: follow-up questions, memory, replies in 3 languages
+  ├─ services/signatures.py ── SHA-256 + hash chain, verification
+  └─ SQLite                 ── customers, orders, ledger_entries, voice_signatures, voice log
+```
 
-**Target Duration:** 2 minutes 45 seconds (Under the 3:00 minute challenge limit)
+Key endpoints:
 
-* **[0:00 - 0:35] Problem & Introduction**
-  * *Visual:* Camera on speaker or overview of Surat textile wholesale market.
-  * *Voiceover:* "Namaste! For millions of small business owners across India, typing into complex business apps is painful. Shop owners in Surat and Ahmedabad run their business through WhatsApp voice notes and paper diaries. Introducing VyaparVaani AI—a voice-first business assistant built for Bharat that lets shop owners run their operations entirely by speaking."
-* **[0:35 - 1:45] The Core Voice-to-Order Demo (Live)**
-  * *Visual:* Screen recording of VyaparVaani dashboard at `localhost:3000`.
-  * *Action:* Click the microphone button.
-  * *Spoken Command:* *"Add an order for Rahul. 20 shirts, total 15000 rupees."*
-  * *Visual:* Soundwave pulses. Live interim transcript appears.
-  * *Visual:* Extraction card appears instantly showing: Customer: Rahul Sharma, Product: Cotton Shirts, Quantity: 20, Amount: ₹15,000.
-  * *Assistant Audio:* Speaks: *"You want to add 20 shirts for Rahul for ₹15,000. Should I save this order?"*
-  * *Action:* User clicks "Yes, Save Order" (or says "Yes, save it").
-  * *Visual:* Confetti bursts! Assistant speaks confirmation: *"Your order has been saved successfully!"*
-  * *Visual:* Show the Orders tab and Dashboard updating live with the new order and updated revenue.
-* **[1:45 - 2:15] Multilingual Capability (Hindi & Gujarati)**
-  * *Visual:* Switch language toggle to Gujarati.
-  * *Action:* Click mic and speak: *"રાહુલ માટે 20 શર્ટ નો ઓર્ડર ઉમેરો, કુલ 15000 રૂપિયા"*
-  * *Visual:* UI displays Gujarati prompt and Gujarati spoken confirmation.
-* **[2:15 - 2:45] Architecture & Zero-Key Guarantee**
-  * *Visual:* Show Settings tab displaying "Zero-Key Offline AI Ready". Show terminal running tests.
-  * *Voiceover:* "VyaparVaani runs completely without paid API keys, with full mock fallbacks. Thank you, Build for Bharat!"
+| Method | Endpoint |
+|---|---|
+| `POST` | `/api/voice/process`, `/api/voice/confirm` |
+| `GET` | `/api/khata`, `/api/khata/{customer_id}` |
+| `POST` | `/api/khata/entries/{id}/signature` |
+| `GET` | `/api/signatures/{id}/audio`, `/api/signatures/verify` |
 
----
+Full docs at `http://127.0.0.1:8000/docs`.
 
-## 📊 Pitch Deck Structure (PDF Guide)
+## Honest limitations
 
-A companion 5-slide pitch deck for the required submission:
-
-1. **Slide 1: Problem**
-   * Indian MSMEs generate ₹150 Lakh Crore in economic output, but 85% in Tier 2/3 cities still rely on paper notebooks and verbal notes because modern software is English-centric and typing-heavy.
-2. **Slide 2: Target Users**
-   * Wholesalers, Garment Boutiques, Kirana Stores, Independent Service Providers.
-   * Persona: "Rameshbhai, 48, Surat Textile Wholesaler". Fluent in Gujarati and Hindi, uses WhatsApp daily, struggles with complex ERP software.
-3. **Slide 3: Solution & Core Demo**
-   * Hands-free voice assistant. Speak naturally in local languages. Automated entity extraction, verification step to prevent errors, instant database commit.
-4. **Slide 4: Technical Architecture & Dependencies**
-   * Web Speech Recognition + Web Speech Synthesis.
-   * FastAPI + SQLite / Supabase PostgreSQL.
-   * Zero-cost deterministic offline fallback guarantees high availability and zero API costs.
-5. **Slide 5: Launch & Go-To-Market Plan**
-   * Phase 1: Pilot with 50 Surat textile market traders via WhatsApp integration.
-   * Phase 2: Add voice invoice generation and UPI payment link generation.
-   * Phase 3: Regional expansion to Maharashtra (Marathi) and Tamil Nadu (Tamil).
-
----
-
-## 🏆 Round 2 Submission Checklist
-
-- [x] **Public GitHub Repository:** Ready to push with complete source code, tests, and `.env.example`.
-- [x] **Starts Without Secret Keys:** 100% verified zero-key execution mode.
-- [x] **Core Voice-to-Order Flow:** Fully functional with voice input, entity extraction, confirmation prompt, database persistence, and dashboard update.
-- [x] **Multilingual Support:** English, Hindi, and Gujarati presets and parsers implemented.
-- [x] **Audio Speech Synthesis:** Spoken confirmation prompts and success responses.
-- [x] **YouTube Demo Script:** Ready for recording under 3 minutes.
-- [x] **Pitch Deck Outline:** Comprehensive roadmap included.
-
----
-
-*VyaparVaani AI — Empowering Bharat's Small Businesses through Voice.*
+- The language engine is rule-based. It handles shop vocabulary well, but not arbitrary chit-chat.
+- Speech recognition quality depends on the phone's browser. Hindi and Gujarati speech work best in Chrome (Android or desktop).
+- A voice signature is **evidence the merchant can play back**. It is not a claim of legal enforceability, and the customer's spoken "haan" is their consent to be recorded.

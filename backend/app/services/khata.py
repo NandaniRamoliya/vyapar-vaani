@@ -10,6 +10,8 @@ import uuid
 from datetime import datetime
 from typing import Any, Optional
 
+from app.services.indic import best_name_match, has_indic, to_display_name
+
 
 def format_inr(amount: float) -> str:
     """Indian digit grouping: 122000 -> '1,22,000'."""
@@ -33,10 +35,21 @@ def _now() -> str:
 
 
 def resolve_customer(cursor, spoken_name: Optional[str]):
-    """Match a spoken (often first-name only) customer to an existing customer row."""
+    """Match a spoken (often first-name only, any script) customer to an existing customer row."""
     if not spoken_name or not spoken_name.strip():
         return None
     name = spoken_name.strip()
+
+    # Script- and spelling-insensitive match: "राहुल", "રાહુલે", "Raahul" -> "Rahul Sharma"
+    cursor.execute("SELECT name FROM customers ORDER BY created_at ASC")
+    match = best_name_match(name, [r["name"] for r in cursor.fetchall()])
+    if match:
+        cursor.execute("SELECT * FROM customers WHERE name = ? ORDER BY created_at ASC LIMIT 1", (match,))
+        row = cursor.fetchone()
+        if row:
+            return row
+    if has_indic(name):
+        name = to_display_name(name)
 
     cursor.execute("SELECT * FROM customers WHERE LOWER(name) = LOWER(?) LIMIT 1", (name,))
     row = cursor.fetchone()
@@ -61,7 +74,8 @@ def get_or_create_customer(cursor, spoken_name: str, note: str = "Added from Voi
     if row:
         return row["id"], row["name"]
     cust_id = f"cust_{uuid.uuid4().hex[:8]}"
-    clean_name = spoken_name.strip().title() or "Walk-in Customer"
+    spoken = spoken_name.strip()
+    clean_name = (to_display_name(spoken) if has_indic(spoken) else spoken.title()) or "Walk-in Customer"
     cursor.execute(
         "INSERT INTO customers (id, name, phone, business_notes, created_at) VALUES (?, ?, ?, ?, ?)",
         (cust_id, clean_name, "", note, _now()),

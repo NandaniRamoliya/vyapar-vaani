@@ -6,6 +6,7 @@ from app.database.db import get_db_connection
 from app.models.schemas import DashboardStats
 from app.services import khata
 from app.services.khata import format_inr
+from app.services.replies import first_name, money, say
 
 class BusinessService:
 
@@ -121,12 +122,14 @@ class BusinessService:
             )
 
             khata_balance = None
+            signature_request = None
             if payment_mode == "udhar" and total_amount > 0:
-                khata.add_entry(
+                entry = khata.add_entry(
                     cursor, customer_id, customer_name, "credit", total_amount,
                     note=f"Order: {quantity} {product_name}", source="order", order_id=order_id,
                 )
                 khata_balance = khata.get_balance(cursor, customer_id)["balance"]
+                signature_request = BusinessService.signature_request(entry["id"], customer_name, total_amount, language)
             conn.commit()
 
             result = {
@@ -139,6 +142,7 @@ class BusinessService:
                 "total_amount": total_amount,
                 "payment_mode": payment_mode,
                 "khata_balance": khata_balance,
+                "signature_request": signature_request,
                 "status": "confirmed",
                 "created_at": now
             }
@@ -148,9 +152,9 @@ class BusinessService:
             elif "hi" in language:
                 spoken_response = f"आपका ऑर्डर सफलतापूर्वक सेव हो गया है! {customer_name} के लिए {quantity} {product_name} कन्फर्म हो चुके हैं।"
             else:
-                spoken_response = f"Your order has been saved successfully. Confirmed {quantity} {product_name} for {customer_name} worth rupees {int(total_amount)}."
-            if khata_balance is not None and "gu" not in language and "hi" not in language:
-                spoken_response += f" Added to {customer_name}'s khata. Total udhar is now rupees {format_inr(khata_balance)}."
+                spoken_response = f"Order saved successfully. {quantity} {product_name} for {customer_name}, {money(total_amount)}."
+            if khata_balance is not None:
+                spoken_response += " " + say("khata_now", language, bal=money(khata_balance))
 
         elif intent == "create_reminder":
             customer_name = data.get("customer_name", "Rahul Sharma")
@@ -229,121 +233,60 @@ class BusinessService:
                 "entry_type": entry_type,
                 "amount": amount,
                 "balance": bal["balance"],
+                "signature_request": (
+                    BusinessService.signature_request(entry["id"], customer_name, amount, language)
+                    if entry_type == "credit" else None
+                ),
             }
-            spoken_response = BusinessService._khata_saved_spoken(entry_type, customer_name, amount, bal["balance"], language)
+            if entry_type == "credit":
+                spoken_response = say("saved_udhar", language, name=customer_name, amt=money(amount), bal=money(bal["balance"]))
+            else:
+                b_val = bal["balance"]
+                if b_val > 0:
+                    line = say("balance_due", language, name=customer_name, bal=money(b_val))
+                elif b_val == 0:
+                    line = say("balance_zero", language, name=customer_name)
+                else:
+                    line = say("balance_advance", language, name=customer_name, bal=money(-b_val))
+                spoken_response = say("saved_payment", language, name=customer_name, amt=money(amount), balance_line=line)
+
+        elif intent == "undo_last":
+            target_type, target_id = data.get("target_type"), data.get("target_id")
+            if target_type == "ledger":
+                cursor.execute("SELECT id FROM voice_signatures WHERE entry_id = ?", (target_id,))
+                if cursor.fetchone():
+                    conn.close()
+                    raise ValueError("Signed khata entries cannot be removed")
+                cursor.execute("DELETE FROM ledger_entries WHERE id = ?", (target_id,))
+            elif target_type == "order":
+                cursor.execute(
+                    "SELECT s.id FROM voice_signatures s JOIN ledger_entries l ON l.id = s.entry_id WHERE l.order_id = ?",
+                    (target_id,))
+                if cursor.fetchone():
+                    conn.close()
+                    raise ValueError("Signed udhar orders cannot be removed")
+                cursor.execute("DELETE FROM ledger_entries WHERE order_id = ? AND source = 'order'", (target_id,))
+                cursor.execute("DELETE FROM orders WHERE id = ?", (target_id,))
+            else:
+                conn.close()
+                raise ValueError("Nothing to undo")
+            conn.commit()
+            result = {"undone": target_type, "id": target_id}
+            spoken_response = say("undo_done", language)
 
         conn.close()
         return result, spoken_response
 
-    # ------------------------------------------------------------------ khata voice helpers
     @staticmethod
-    def _balance_phrase(name: str, balance: float, language: str) -> str:
-        if "gu" in language:
-            if balance > 0:
-                return f"{name} પાસે ₹{format_inr(balance)} બાકી છે."
-            return f"{name} નું ખાતું ચોખ્ખું છે." if balance == 0 else f"{name} એ ₹{format_inr(-balance)} એડવાન્સ આપ્યા છે."
-        if "hi" in language:
-            if balance > 0:
-                return f"{name} का ₹{format_inr(balance)} बाकी है।"
-            return f"{name} का खाता साफ़ है।" if balance == 0 else f"{name} ने ₹{format_inr(-balance)} एडवांस दिए हैं।"
-        if balance > 0:
-            return f"{name} owes you rupees {format_inr(balance)}."
-        if balance == 0:
-            return f"{name}'s khata is fully settled. Nothing is pending."
-        return f"{name} has paid rupees {format_inr(-balance)} in advance."
-
-    @staticmethod
-    def _khata_saved_spoken(entry_type: str, name: str, amount: float, balance: float, language: str) -> str:
-        bal_phrase = BusinessService._balance_phrase(name, balance, language)
-        if "gu" in language:
-            head = f"₹{format_inr(amount)} {'ઉધાર લખાઈ ગયા' if entry_type == 'credit' else 'જમા થઈ ગયા'}."
-        elif "hi" in language:
-            head = f"₹{format_inr(amount)} {'उधार लिख दिए' if entry_type == 'credit' else 'जमा कर लिए'}।"
-        elif entry_type == "credit":
-            head = f"Added rupees {format_inr(amount)} udhar to {name}'s khata."
-        else:
-            head = f"Received rupees {format_inr(amount)} from {name}. Payment recorded."
-        return f"{head} {bal_phrase}"
-
-    @staticmethod
-    def enrich_khata(parsed: dict[str, Any], language: str = "en-IN") -> None:
-        """Fill khata intents with live balances so the merchant hears real numbers before confirming."""
-        intent = parsed["intent"]
-        data = parsed["extracted_data"]
-        if intent not in ("add_udhar", "record_payment", "check_balance", "list_dues"):
-            return
-        if data.get("missing"):
-            return
-
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        try:
-            if intent == "list_dues":
-                summary = khata.list_accounts(cursor)
-                top = [a for a in summary["accounts"] if a["balance"] > 0][:5]
-                data["khata_summary"] = {
-                    "total_outstanding": summary["total_outstanding"],
-                    "customers_with_dues": summary["customers_with_dues"],
-                    "top": [
-                        {"customer_id": a["customer_id"], "customer_name": a["customer_name"], "phone": a["phone"],
-                         "balance": a["balance"], "days_since_payment": a["days_since_payment"],
-                         "never_paid": a["never_paid"]}
-                        for a in top
-                    ],
-                }
-                if not top:
-                    parsed["spoken_response"] = "Nobody owes you anything right now. All khatas are settled!"
-                else:
-                    names = ", ".join(f"{a['customer_name']} rupees {format_inr(a['balance'])}" for a in top[:3])
-                    parsed["spoken_response"] = (
-                        f"{summary['customers_with_dues']} customers owe you a total of rupees "
-                        f"{format_inr(summary['total_outstanding'])}. Highest dues: {names}."
-                    )
-                return
-
-            row = khata.resolve_customer(cursor, data.get("customer_name"))
-
-            if intent == "check_balance":
-                if not row:
-                    data["found"] = False
-                    parsed["spoken_response"] = f"I could not find a customer named {data.get('customer_name')} in your khata book."
-                    return
-                bal = khata.get_balance(cursor, row["id"])
-                data.update({
-                    "found": True,
-                    "customer_id": row["id"],
-                    "customer_name": row["name"],
-                    "phone": row["phone"] or "",
-                    **bal,
-                    "recent_entries": khata.get_ledger(cursor, row["id"])[:3],
-                })
-                spoken = BusinessService._balance_phrase(row["name"], bal["balance"], language)
-                if bal["last_payment_at"] and bal["balance"] > 0 and "gu" not in language and "hi" not in language:
-                    spoken += f" Last payment was on {bal['last_payment_at'][:10]}."
-                parsed["spoken_response"] = spoken
-                return
-
-            # add_udhar / record_payment: show before -> after so the merchant can verify
-            amount = float(data["amount"])
-            if row:
-                current = khata.get_balance(cursor, row["id"])["balance"]
-                data.update({"customer_id": row["id"], "customer_name": row["name"], "phone": row["phone"] or "", "is_new_customer": False})
-            else:
-                current = 0.0
-                data.update({"customer_name": data["customer_name"].title(), "is_new_customer": True})
-            delta = amount if intent == "add_udhar" else -amount
-            data["current_balance"] = current
-            data["new_balance"] = current + delta
-
-            name = data["customer_name"]
-            new_tag = " (new customer)" if data["is_new_customer"] else ""
-            if intent == "add_udhar":
-                prompt = (f"Add ₹{format_inr(amount)} udhar to {name}'s khata{new_tag}? "
-                          f"Balance goes from ₹{format_inr(current)} to ₹{format_inr(current + delta)}. Say yes to save.")
-            else:
-                prompt = (f"Record ₹{format_inr(amount)} received from {name}{new_tag}? "
-                          f"Balance goes from ₹{format_inr(current)} to ₹{format_inr(current + delta)}. Say yes to save.")
-            parsed["confirmation_prompt"] = prompt
-            parsed["spoken_response"] = prompt
-        finally:
-            conn.close()
+    def signature_request(entry_id: str, customer_name: str, amount: float, language: str) -> dict[str, Any]:
+        """What the customer should say to sign this udhar with their voice."""
+        phrase = say("signature_phrase", language, amt=money(amount))
+        return {
+            "entry_id": entry_id,
+            "customer_name": customer_name,
+            "first_name": first_name(customer_name),
+            "amount": amount,
+            "phrase": phrase,
+            "prompt": say("ask_signature", language, first=first_name(customer_name), phrase=phrase),
+            "thanks": say("signature_saved", language, first=first_name(customer_name)),
+        }

@@ -14,7 +14,7 @@ def get_settings_status():
             "version": settings.VERSION,
             "mock_mode": settings.MOCK_MODE,
             "zero_key_ready": True,
-            "active_ai_provider": "Offline Deterministic Multilingual NLP" if settings.MOCK_MODE else "Cloud LLM",
+            "active_ai_provider": "Offline Deterministic Multilingual NLP (zero-key, no cloud LLM)",
             "supported_languages": [
                 {"code": "en-IN", "name": "English (India)", "native": "English"},
                 {"code": "hi-IN", "name": "Hindi", "native": "हिन्दी"},

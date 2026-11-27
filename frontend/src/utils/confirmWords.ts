@@ -8,26 +8,32 @@ const YES = [
   'correct', 'right', 'sure', 'done', 'go ahead', 'do it', 'perfect',
   'haan', 'han', 'haa', 'ha', 'haanji', 'haan ji', 'ji', 'ji haan', 'theek', 'thik', 'theek hai', 'thik hai',
   'sahi', 'sahi hai', 'kar do', 'kardo', 'karo', 'bilkul', 'chalega', 'ho gaya', 'barabar',
-  'हाँ', 'हां', 'जी', 'ठीक', 'सही', 'कर दो', 'બરાબર', 'હા', 'હાં', 'ઠીક', 'સાચું',
+  'हाँ', 'हां', 'हा', 'जी', 'जी हाँ', 'ठीक', 'ठीक है', 'सही', 'सही है', 'कर दो', 'लिख दो', 'सेव करो', 'बिल्कुल', 'चलेगा',
+  'બરાબર', 'હા', 'હાં', 'હા જી', 'ઠીક', 'ઠીક છે', 'સાચું', 'કરી દો', 'લખી દો', 'સેવ કરો', 'ચાલશે', 'હો',
 ];
 const NO = [
   'no', 'nope', 'nah', 'cancel', 'stop', 'wrong', 'incorrect', 'dont', "don't", 'do not', 'not',
-  'nahi', 'nahin', 'nai', 'na', 'mat', 'mat karo', 'galat', 'cancel karo', 'rehne do', 'rehne de',
-  'नहीं', 'नही', 'मत', 'गलत', 'ના', 'નહીં', 'ખોટું',
+  'nahi', 'nahin', 'nai', 'mat', 'mat karo', 'galat', 'cancel karo', 'rehne do', 'rehne de',
+  'नहीं', 'नही', 'मत', 'मत करो', 'गलत', 'रद्द', 'रहने दो', 'रुको',
+  'ના', 'નહીં', 'નહિ', 'ખોટું', 'રદ', 'રહેવા દો', 'રોકો', 'નથી',
 ];
 
 function matches(text: string, words: string[]): boolean {
+  const padded = ` ${text} `;
   return words.some((w) => {
     if (/^[\x00-\x7F]+$/.test(w)) {
       return new RegExp(`(^|[^a-z])${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^a-z])`).test(text);
     }
-    return text.includes(w);
+    // Whole words only, so "રાહુલના" (Rahul's) never reads as "ના" (no)
+    return padded.includes(` ${w} `);
   });
 }
 
 export function classifyConfirmation(raw: string): 'yes' | 'no' | null {
   const text = raw.toLowerCase().replace(/[.,!?।]/g, ' ').replace(/\s+/g, ' ').trim();
   if (!text) return null;
+  // A bare "na" / "ना" is "no" only when it starts the reply ("kar do na" = "please do it")
+  if (/^(na|naa|ना|ના)( |$)/.test(text)) return 'no';
   // "No" wins over "yes" so "no, that's not correct" never saves by accident.
   if (matches(text, NO)) return 'no';
   if (matches(text, YES)) return 'yes';

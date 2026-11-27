@@ -1,6 +1,7 @@
 import React from 'react';
-import { Globe, Mic, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Mic, ShieldCheck } from 'lucide-react';
 import { LanguageCode } from '../types';
+import { LANGS, LANG_ORDER } from '../utils/lang';
 
 interface HeaderProps {
   currentTab: string;
@@ -18,7 +19,7 @@ export const Header: React.FC<HeaderProps> = ({
   const getTitles = () => {
     switch (currentTab) {
       case 'voice_os':
-        return { title: 'VyaparVaani Voice OS', subtitle: 'Voice-First Bharat Soundbox Assistant for Shopkeepers' };
+        return { title: 'Vaani · Voice Munim', subtitle: 'Speak in English, हिन्दी or ગુજરાતી. Customers sign udhar with their own voice.' };
       case 'orders':
         return { title: 'Orders Management', subtitle: 'Real-time order entries created via voice commands' };
       case 'customers':
@@ -39,32 +40,42 @@ export const Header: React.FC<HeaderProps> = ({
   const { title, subtitle } = getTitles();
 
   return (
-    <header className="h-18 bg-white border-b border-slate-200 px-8 flex items-center justify-between shrink-0">
-      <div>
-        <h1 className="text-xl font-bold text-slate-900 tracking-tight">{title}</h1>
-        <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
+    <header className="h-14 md:h-18 bg-white border-b border-slate-200 px-4 md:px-8 flex items-center justify-between gap-3 shrink-0">
+      <div className="min-w-0">
+        <h1 className="text-base md:text-xl font-bold text-slate-900 tracking-tight truncate">{title}</h1>
+        <p className="hidden md:block text-xs text-slate-500 mt-0.5 truncate">{subtitle}</p>
       </div>
 
-      <div className="flex items-center space-x-3">
-        {/* Zero-Key / Mock Mode indicator */}
-        <div className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">
+      <div className="flex items-center gap-2 md:gap-3 shrink-0">
+        <div className="hidden lg:flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-          <span>Zero-Key Offline AI Ready</span>
+          <span>Zero-Key · Runs Offline-First</span>
         </div>
 
-        {/* English Only Audio Badge */}
-        <div className="flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-700">
-          <span>English (India)</span>
+        <div className="flex rounded-xl bg-slate-100 p-0.5" role="group" aria-label="Language">
+          {LANG_ORDER.map((code) => (
+            <button
+              key={code}
+              onClick={() => onLanguageChange(code)}
+              aria-pressed={language === code}
+              className={`min-w-9 h-8 px-2 rounded-lg text-xs font-bold cursor-pointer ${
+                language === code ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {LANGS[code].short}
+            </button>
+          ))}
         </div>
 
-        {/* Quick Voice Mic Button */}
-        <button
-          onClick={onOpenVoice}
-          className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold shadow-sm transition-all cursor-pointer active:scale-95"
-        >
-          <Mic className="w-4 h-4" />
-          <span>Voice Command</span>
-        </button>
+        {currentTab !== 'voice_os' && (
+          <button
+            onClick={onOpenVoice}
+            className="hidden md:flex items-center space-x-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold shadow-sm transition-all cursor-pointer active:scale-95"
+          >
+            <Mic className="w-4 h-4" />
+            <span>Talk to Vaani</span>
+          </button>
+        )}
       </div>
     </header>
   );

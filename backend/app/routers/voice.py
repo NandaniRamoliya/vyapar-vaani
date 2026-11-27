@@ -3,10 +3,10 @@ import uuid
 from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from app.models.schemas import ProcessVoiceRequest, ConfirmActionRequest, VoiceInteraction, ApiResponse
-from app.services.nlp_parser import NLPParser
+from app.services.agent import VoiceAgent
+from app.services.replies import money
 from app.services.business_logic import BusinessService
 from app.database.db import get_db_connection
-from app.services.khata import format_inr
 
 router = APIRouter(prefix="/api/voice", tags=["Voice Assistant"])
 
@@ -19,59 +19,25 @@ def process_voice_command(request: ProcessVoiceRequest):
     if not request.transcript.strip():
         raise HTTPException(status_code=400, detail="Transcript cannot be empty")
 
-    # Parse using Multilingual NLP Parser
-    parsed = NLPParser.parse(request.transcript, request.language)
-    # Khata intents: resolve the customer and attach live balances before confirming
-    BusinessService.enrich_khata(parsed, request.language)
+    # Vaani understands the sentence (with conversation memory) and prepares the reply
+    parsed = VoiceAgent.handle(request.transcript, request.language, request.context)
     spoken_response = parsed["spoken_response"]
 
-    # Enrich query intents with real database numbers!
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    if parsed["intent"] == "show_business_summary":
-        today = datetime.now().strftime("%Y-%m-%d")
-        cursor.execute(
-            "SELECT COUNT(*), COALESCE(SUM(total_amount), 0) FROM orders WHERE created_at LIKE ? AND status != 'cancelled'",
-            (f"{today}%",),
-        )
-        row = cursor.fetchone()
-        tot_orders, tot_rev = row[0], float(row[1])
-        cursor.execute("SELECT COUNT(*) FROM orders WHERE status = 'pending'")
-        pending_count = cursor.fetchone()[0]
-        cursor.execute(
-            "SELECT COALESCE(SUM(amount), 0) FROM ledger_entries WHERE entry_type = 'payment' AND created_at LIKE ?",
-            (f"{today}%",),
-        )
-        collected_today = float(cursor.fetchone()[0])
-
-        if "gu" in request.language:
-            spoken_response = f"આજનો કુલ વેપાર {tot_orders} ઓર્ડરમાં ₹{format_inr(tot_rev)} થયો છે, અને {pending_count} ઓર્ડર બાકી છે."
-        elif "hi" in request.language:
-            spoken_response = f"आज का कुल व्यापार {tot_orders} ऑर्डर्स में ₹{format_inr(tot_rev)} है, और {pending_count} ऑर्डर पेंडिंग हैं।"
-        elif tot_orders == 0:
-            spoken_response = f"No sales recorded yet today. You have {pending_count} pending orders to dispatch."
-        else:
-            spoken_response = f"Today you sold rupees {format_inr(tot_rev)} across {tot_orders} orders, with {pending_count} pending dispatches."
-        if collected_today > 0 and "gu" not in request.language and "hi" not in request.language:
-            spoken_response += f" You also collected rupees {format_inr(collected_today)} of udhar today."
-        parsed["extracted_data"]["stats"] = {
-            "total_revenue": tot_rev, "total_orders": tot_orders,
-            "pending_orders": pending_count, "collected_today": collected_today,
-        }
-
-    elif parsed["intent"] == "list_orders":
+    if parsed["intent"] == "list_orders":
         cursor.execute("SELECT customer_name, total_amount FROM orders WHERE status = 'pending' LIMIT 3")
         pending_rows = cursor.fetchall()
         if pending_rows:
             names = ", ".join([r["customer_name"] for r in pending_rows])
-            tot_pending = sum([r["total_amount"] for r in pending_rows])
+            tot_pending = money(sum([r["total_amount"] for r in pending_rows]))
             if "gu" in request.language:
-                spoken_response = f"તમારા {len(pending_rows)} ઓર્ડર બાકી છે: {names} માટે, કુલ રકમ ₹{tot_pending:,.0f}."
+                spoken_response = f"તમારા {len(pending_rows)} ઓર્ડર બાકી છે: {names}, કુલ {tot_pending}."
             elif "hi" in request.language:
-                spoken_response = f"आपके {len(pending_rows)} ऑर्डर्स पेंडिंग हैं: {names} के लिए, कुल राशि ₹{tot_pending:,.0f}."
+                spoken_response = f"आपके {len(pending_rows)} ऑर्डर पेंडिंग हैं: {names}, कुल {tot_pending}।"
             else:
-                spoken_response = f"You have {len(pending_rows)} pending orders for {names}, totaling rupees {int(tot_pending):,}."
+                spoken_response = f"You have {len(pending_rows)} pending orders for {names}, totaling {tot_pending}."
         else:
             if "gu" in request.language:
                 spoken_response = "હાલમાં કોઈ પેન્ડિંગ ઓર્ડર નથી. બધા ઓર્ડર કમ્પ્લીટ છે!"
@@ -126,6 +92,7 @@ def process_voice_command(request: ProcessVoiceRequest):
         "spoken_response": spoken_response,
         "status": initial_status,
         "executed_result": executed_result,
+        "context": parsed.get("context") or {},
     }
 
     return ApiResponse(
@@ -170,11 +137,11 @@ def confirm_voice_action(request: ConfirmActionRequest):
         conn.commit()
         conn.close()
         
-        cancel_msg = "Action cancelled. No changes were made."
+        cancel_msg = "Okay, cancelled. Nothing was saved."
         if "gu" in language:
-            cancel_msg = "ઓર્ડર રદ કરવામાં આવ્યો છે. કોઈ ફેરફાર થયો નથી."
+            cancel_msg = "સારું, રદ કર્યું. કંઈ સેવ નથી થયું."
         elif "hi" in language:
-            cancel_msg = "ऑर्डर रद्द कर दिया गया है। कोई बदलाव नहीं किया गया।"
+            cancel_msg = "ठीक है, रद्द कर दिया। कुछ सेव नहीं हुआ।"
 
         return ApiResponse(
             success=True,

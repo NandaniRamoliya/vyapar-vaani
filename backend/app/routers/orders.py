@@ -69,6 +69,13 @@ def update_order_status(order_id: str, status: str = Query(..., pattern="^(pendi
 def delete_order(order_id: str):
     conn = get_db_connection()
     cursor = conn.cursor()
+    cursor.execute(
+        "SELECT s.id FROM voice_signatures s JOIN ledger_entries l ON l.id = s.entry_id WHERE l.order_id = ?",
+        (order_id,),
+    )
+    if cursor.fetchone():
+        conn.close()
+        raise HTTPException(status_code=409, detail="This udhar order has the customer's voice signature and cannot be deleted.")
     cursor.execute("DELETE FROM orders WHERE id = ?", (order_id,))
     if cursor.rowcount == 0:
         conn.close()

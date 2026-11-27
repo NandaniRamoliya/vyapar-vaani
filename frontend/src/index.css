@@ -26,3 +26,17 @@
 .soundwave-bar {
   animation: soundwave 1.2s ease-in-out infinite;
 }
+
+/* Horizontal chip rows on phones: scroll without a visible bar */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Bigger, steadier touch behaviour on phones */
+button {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}

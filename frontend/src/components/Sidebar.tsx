@@ -58,7 +58,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       };
     }
     return {
-      voiceOS: 'Voice OS',
+      voiceOS: 'Vaani (Voice)',
       overview: 'Overview',
       orders: 'Orders',
       customers: 'Customers',
@@ -66,7 +66,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       reminders: 'Reminders',
       history: 'Voice History',
       settings: 'Settings',
-      speakBtn: 'Speak to Assistant',
+      speakBtn: 'Talk to Vaani',
       shopName: 'Nandani Textiles',
       shopCity: 'Surat, Gujarat',
     };

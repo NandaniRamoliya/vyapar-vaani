@@ -1,23 +1,22 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
-import { VoiceAssistantModal } from './components/VoiceAssistantModal';
+import { BottomNav } from './components/BottomNav';
 import { DashboardTab } from './components/DashboardTab';
 import { OrdersTab } from './components/OrdersTab';
 import { CustomersTab } from './components/CustomersTab';
 import { RemindersTab } from './components/RemindersTab';
 import { VoiceHistoryTab } from './components/VoiceHistoryTab';
 import { SettingsTab } from './components/SettingsTab';
-import { VoiceOSView } from './components/VoiceOSView';
+import { VoiceAgent } from './components/VoiceAgent';
 import { KhataTab } from './components/KhataTab';
 import { DashboardStats, Order, Customer, Reminder, VoiceInteraction, LanguageCode } from './types';
 import { api } from './services/api';
-import { Mic } from 'lucide-react';
+import { loadLanguage, saveLanguage } from './utils/lang';
 
 export function App() {
   const [currentTab, setCurrentTab] = useState('voice_os');
-  const [language, setLanguage] = useState<LanguageCode>('en-IN');
-  const [isVoiceOpen, setIsVoiceOpen] = useState(false);
+  const [language, setLanguageState] = useState<LanguageCode>(loadLanguage);
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -27,6 +26,11 @@ export function App() {
   const [loading, setLoading] = useState(true);
   // Bumped on every data reload so the Khata tab re-fetches its own ledger data
   const [refreshKey, setRefreshKey] = useState(0);
+
+  const setLanguage = (lang: LanguageCode) => {
+    setLanguageState(lang);
+    saveLanguage(lang);
+  };
 
   const loadAllData = useCallback(async () => {
     try {
@@ -54,110 +58,48 @@ export function App() {
     loadAllData();
   }, [loadAllData]);
 
-  const handleVoiceCompleted = () => {
-    // Instantly refresh all data to show updated dashboard & orders!
-    loadAllData();
-  };
+  const openVoice = () => setCurrentTab('voice_os');
+  const isVoice = currentTab === 'voice_os';
 
   return (
-    <div className="flex h-screen bg-slate-100 font-sans antialiased overflow-hidden selection:bg-indigo-500 selection:text-white">
-      {/* Left Sidebar */}
-      <Sidebar
-        currentTab={currentTab}
-        onSelectTab={setCurrentTab}
-        onOpenVoice={() => setIsVoiceOpen(true)}
-        language={language}
-      />
+    <div className="flex h-[100dvh] bg-slate-100 font-sans antialiased overflow-hidden selection:bg-indigo-500 selection:text-white">
+      <div className="hidden md:flex">
+        <Sidebar currentTab={currentTab} onSelectTab={setCurrentTab} onOpenVoice={openVoice} language={language} />
+      </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
-        <Header
-          currentTab={currentTab}
-          language={language}
-          onLanguageChange={setLanguage}
-          onOpenVoice={() => setIsVoiceOpen(true)}
-        />
+      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
+        <div className={isVoice ? 'hidden md:block' : ''}>
+          <Header currentTab={currentTab} language={language} onLanguageChange={setLanguage} onOpenVoice={openVoice} />
+        </div>
 
-        <main className="flex-1 overflow-y-auto p-6 md:p-8">
-          {loading ? (
-            <div className="flex items-center justify-center h-64 text-slate-400 text-sm">
-              Loading VyaparVaani workspace...
-            </div>
+        {/* The voice agent manages its own scroll area; the back-office tabs scroll as pages */}
+        <main className={isVoice ? 'flex-1 min-h-0 overflow-hidden' : 'flex-1 min-h-0 overflow-y-auto p-4 md:p-8'}>
+          {isVoice ? (
+            <VoiceAgent
+              language={language}
+              onLanguageChange={setLanguage}
+              onRefreshData={loadAllData}
+              onOpenKhata={() => setCurrentTab('khata')}
+            />
+          ) : loading ? (
+            <div className="flex items-center justify-center h-64 text-slate-400 text-sm">Loading VyaparVaani workspace...</div>
           ) : (
             <>
-              {currentTab === 'voice_os' && (
-                <VoiceOSView
-                  language={language}
-                  onLanguageChange={setLanguage}
-                  onRefreshData={loadAllData}
-                  onOpenKhata={() => setCurrentTab('khata')}
-                />
-              )}
               {currentTab === 'overview' && (
-                <DashboardTab
-                  stats={stats}
-                  orders={orders}
-                  onOpenVoice={() => setIsVoiceOpen(true)}
-                  onSelectTab={setCurrentTab}
-                  language={language}
-                />
+                <DashboardTab stats={stats} orders={orders} onOpenVoice={openVoice} onSelectTab={setCurrentTab} language={language} />
               )}
-              {currentTab === 'orders' && (
-                <OrdersTab
-                  orders={orders}
-                  onRefresh={loadAllData}
-                  onOpenVoice={() => setIsVoiceOpen(true)}
-                />
-              )}
-              {currentTab === 'customers' && (
-                <CustomersTab
-                  customers={customers}
-                  onRefresh={loadAllData}
-                  onOpenVoice={() => setIsVoiceOpen(true)}
-                />
-              )}
-              {currentTab === 'khata' && (
-                <KhataTab
-                  onOpenVoice={() => setIsVoiceOpen(true)}
-                  onRefresh={loadAllData}
-                  refreshKey={refreshKey}
-                />
-              )}
-              {currentTab === 'reminders' && (
-                <RemindersTab
-                  reminders={reminders}
-                  onRefresh={loadAllData}
-                  onOpenVoice={() => setIsVoiceOpen(true)}
-                />
-              )}
-              {currentTab === 'history' && (
-                <VoiceHistoryTab
-                  history={history}
-                  onOpenVoice={() => setIsVoiceOpen(true)}
-                />
-              )}
+              {currentTab === 'orders' && <OrdersTab orders={orders} onRefresh={loadAllData} onOpenVoice={openVoice} />}
+              {currentTab === 'customers' && <CustomersTab customers={customers} onRefresh={loadAllData} onOpenVoice={openVoice} />}
+              {currentTab === 'khata' && <KhataTab onOpenVoice={openVoice} onRefresh={loadAllData} refreshKey={refreshKey} language={language} />}
+              {currentTab === 'reminders' && <RemindersTab reminders={reminders} onRefresh={loadAllData} onOpenVoice={openVoice} />}
+              {currentTab === 'history' && <VoiceHistoryTab history={history} onOpenVoice={openVoice} />}
               {currentTab === 'settings' && <SettingsTab />}
             </>
           )}
         </main>
+
+        <BottomNav currentTab={currentTab} onSelectTab={setCurrentTab} language={language} />
       </div>
-
-      {/* Global Voice Assistant Modal */}
-      <VoiceAssistantModal
-        isOpen={isVoiceOpen}
-        onClose={() => setIsVoiceOpen(false)}
-        language={language}
-        onActionCompleted={handleVoiceCompleted}
-      />
-
-      {/* Floating Microphone CTA for Mobile / Quick Access */}
-      <button
-        onClick={() => setIsVoiceOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-tr from-indigo-600 to-blue-500 text-white flex items-center justify-center shadow-xl shadow-indigo-600/30 hover:scale-105 active:scale-95 transition-all cursor-pointer z-40 group sm:hidden"
-        title="Start speaking"
-      >
-        <Mic className="w-6 h-6 group-hover:scale-110 transition-transform" />
-      </button>
     </div>
   );
 }

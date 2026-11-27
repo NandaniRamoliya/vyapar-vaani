@@ -1,6 +1,6 @@
 import {
   DashboardStats, Order, Customer, Reminder, VoiceInteraction, VoiceProcessResult, LanguageCode,
-  KhataSummary, CustomerLedger, LedgerEntry, LedgerEntryType,
+  KhataSummary, CustomerLedger, LedgerEntry, LedgerEntryType, AgentContext, VoiceSignature, ChainCheck,
 } from '../types';
 
 const API_BASE = '/api';
@@ -12,11 +12,16 @@ export const api = {
     return data.data;
   },
 
-  async processVoice(transcript: string, language: LanguageCode = 'en-IN', autoExecute: boolean = true): Promise<VoiceProcessResult> {
+  async processVoice(
+    transcript: string,
+    language: LanguageCode = 'en-IN',
+    autoExecute: boolean = false,
+    context?: AgentContext,
+  ): Promise<VoiceProcessResult> {
     const res = await fetch(`${API_BASE}/voice/process`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transcript, language, auto_execute: autoExecute }),
+      body: JSON.stringify({ transcript, language, auto_execute: autoExecute, context: context || {} }),
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.message || 'Failed to process voice command');
@@ -67,7 +72,11 @@ export const api = {
   },
 
   async deleteOrder(orderId: string): Promise<void> {
-    await fetch(`${API_BASE}/orders/${orderId}`, { method: 'DELETE' });
+    const res = await fetch(`${API_BASE}/orders/${orderId}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.detail || 'Could not delete order');
+    }
   },
 
   async getCustomers(search?: string): Promise<Customer[]> {
@@ -155,7 +164,36 @@ export const api = {
   },
 
   async deleteKhataEntry(entryId: string): Promise<void> {
-    await fetch(`${API_BASE}/khata/entries/${entryId}`, { method: 'DELETE' });
+    const res = await fetch(`${API_BASE}/khata/entries/${entryId}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.detail || 'Could not delete entry');
+    }
+  },
+
+  async uploadSignature(
+    entryId: string,
+    audio: Blob,
+    durationMs: number,
+    phrase: string,
+    language: LanguageCode,
+  ): Promise<VoiceSignature> {
+    const ext = audio.type.includes('mp4') ? 'm4a' : audio.type.includes('ogg') ? 'ogg' : 'webm';
+    const form = new FormData();
+    form.append('audio', audio, `signature.${ext}`);
+    form.append('duration_ms', String(durationMs));
+    form.append('phrase', phrase);
+    form.append('language', language);
+    const res = await fetch(`${API_BASE}/khata/entries/${entryId}/signature`, { method: 'POST', body: form });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.detail || 'Could not save the voice signature');
+    return data.data;
+  },
+
+  async verifySignatures(): Promise<ChainCheck> {
+    const res = await fetch(`${API_BASE}/signatures/verify`);
+    const data = await res.json();
+    return data.data;
   },
 
   async getSettings(): Promise<any> {

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from app.models.schemas import ApiResponse, LedgerEntryCreate
 from app.database.db import get_db_connection
-from app.services import khata
+from app.services import khata, signatures
 
 router = APIRouter(prefix="/api/khata", tags=["Khata / Udhar Ledger"])
 
@@ -26,10 +26,14 @@ def customer_ledger(customer_id: str):
         row = cursor.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Customer not found")
+        entries = khata.get_ledger(cursor, customer_id)
+        sigs = signatures.signatures_for_entries(cursor, [e["id"] for e in entries])
+        for e in entries:
+            e["signature"] = sigs.get(e["id"])
         data = {
             "customer": dict(row),
             **khata.get_balance(cursor, customer_id),
-            "entries": khata.get_ledger(cursor, customer_id),
+            "entries": entries,
         }
     finally:
         conn.close()
@@ -68,6 +72,12 @@ def delete_entry(entry_id: str):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
+        cursor.execute("SELECT id FROM voice_signatures WHERE entry_id = ?", (entry_id,))
+        if cursor.fetchone():
+            raise HTTPException(
+                status_code=409,
+                detail="This entry carries the customer's voice signature and cannot be deleted. Add a payment entry to balance it.",
+            )
         cursor.execute("DELETE FROM ledger_entries WHERE id = ?", (entry_id,))
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="Khata entry not found")

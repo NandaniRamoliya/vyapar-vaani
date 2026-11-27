@@ -91,6 +91,29 @@ def init_db():
     ''')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_ledger_customer ON ledger_entries(customer_id)')
 
+    # 6. Voice Signatures: the customer's own spoken confirmation of a khata entry.
+    # Each row is chained to the previous one (chain_hash), so editing audio, amounts
+    # or deleting a signature is detectable by /api/signatures/verify.
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS voice_signatures (
+        id TEXT PRIMARY KEY,
+        entry_id TEXT NOT NULL UNIQUE,
+        customer_id TEXT NOT NULL,
+        customer_name TEXT NOT NULL,
+        amount REAL NOT NULL,
+        phrase TEXT,
+        language TEXT,
+        mime_type TEXT NOT NULL,
+        audio BLOB NOT NULL,
+        duration_ms INTEGER,
+        audio_sha256 TEXT NOT NULL,
+        prev_chain_hash TEXT NOT NULL,
+        chain_hash TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (entry_id) REFERENCES ledger_entries(id)
+    )
+    ''')
+
     conn.commit()
 
     # Seed initial realistic data if customers is empty

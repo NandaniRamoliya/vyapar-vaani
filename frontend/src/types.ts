@@ -81,6 +81,47 @@ export interface VoiceProcessResult {
   spoken_response: string;
   status: string;
   executed_result?: any;
+  context?: AgentContext;
+}
+
+/** Conversation memory the phone keeps and sends with every utterance. */
+export interface AgentContext {
+  last_customer?: string | null;
+  pending?: { intent: string; data: Record<string, any>; missing: string[] } | null;
+  last_action?: { type: 'ledger' | 'order'; id: string } | null;
+}
+
+export interface VoiceSignature {
+  id: string;
+  entry_id: string;
+  customer_id: string;
+  customer_name: string;
+  amount: number;
+  phrase: string;
+  language: string;
+  duration_ms: number | null;
+  audio_sha256: string;
+  chain_hash: string;
+  created_at: string;
+  audio_url: string;
+}
+
+export interface SignatureRequest {
+  entry_id: string;
+  customer_name: string;
+  first_name: string;
+  amount: number;
+  phrase: string;
+  prompt: string;
+  thanks: string;
+}
+
+export interface ChainCheck {
+  valid: boolean;
+  checked: number;
+  broken_at?: string;
+  customer_name?: string;
+  problems?: string[];
 }
 
 export type LedgerEntryType = 'credit' | 'payment';
@@ -96,6 +137,7 @@ export interface LedgerEntry {
   order_id?: string | null;
   created_at: string;
   running_balance?: number;
+  signature?: VoiceSignature | null;
 }
 
 export interface KhataAccount {
