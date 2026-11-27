@@ -50,7 +50,13 @@ Clone and run. No API keys are needed and **none are used**: the language engine
 
 ## 🚀 Run it
 
-### Laptop
+### One command (Docker), how judges run it
+```bash
+docker compose up --build
+```
+Open **http://localhost:3000**. That's the whole app (web + API) on one port. No `.env` file and no API keys are needed. Data (khata, orders, voice signatures) is kept in a Docker volume across restarts.
+
+### Without Docker (development)
 ```bash
 # Terminal 1
 cd backend
@@ -118,6 +124,8 @@ FastAPI (Python, stateless)     ▼
   ├─ services/signatures.py ── SHA-256 + hash chain, verification
   └─ SQLite                 ── customers, orders, ledger_entries, voice_signatures, voice log
 ```
+
+Pitch deck: [`pitch_deck.pdf`](pitch_deck.pdf) (source: `pitch_deck.html`).
 
 Key endpoints:
 

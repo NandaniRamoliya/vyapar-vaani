@@ -1,359 +1,193 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>VyaparVaani AI - Build for Bharat Pitch Deck</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-    
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: #f1f5f9;
-      color: #0f172a;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 30px 10px;
-    }
-
-    .slide {
-      width: 297mm;
-      height: 185mm;
-      background: #ffffff;
-      margin-bottom: 30px;
-      padding: 45px 55px;
-      border-radius: 16px;
-      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      position: relative;
-      overflow: hidden;
-      page-break-after: always;
-    }
-
-    @media print {
-      body { background: transparent; padding: 0; }
-      .slide {
-        width: 100vw;
-        height: 100vh;
-        margin: 0;
-        box-shadow: none;
-        border-radius: 0;
-        page-break-after: always;
-      }
-      .no-print { display: none; }
-    }
-
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 2px solid #f1f5f9;
-      padding-bottom: 15px;
-    }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 4px 12px;
-      border-radius: 9999px;
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      background: #eef2ff;
-      color: #4f46e5;
-      border: 1px solid #c7d2fe;
-    }
-    .slide-num {
-      font-size: 12px;
-      font-weight: 700;
-      color: #94a3b8;
-    }
-
-    .title {
-      font-size: 28px;
-      font-weight: 800;
-      color: #0f172a;
-      letter-spacing: -0.02em;
-      margin-top: 15px;
-    }
-    .subtitle {
-      font-size: 14px;
-      color: #64748b;
-      margin-top: 4px;
-    }
-
-    .content {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      margin: 20px 0;
-    }
-
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 25px;
-    }
-    .grid-3 {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 20px;
-    }
-
-    .card {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 12px;
-      padding: 20px;
-    }
-    .card h4 {
-      font-size: 16px;
-      font-weight: 700;
-      color: #1e293b;
-      margin-bottom: 8px;
-    }
-    .card p {
-      font-size: 13px;
-      color: #475569;
-      line-height: 1.5;
-    }
-
-    .stat {
-      font-size: 32px;
-      font-weight: 800;
-      color: #4f46e5;
-      margin-bottom: 4px;
-    }
-
-    .footer {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-top: 1px solid #f1f5f9;
-      padding-top: 15px;
-      font-size: 12px;
-      color: #94a3b8;
-      font-weight: 600;
-    }
-
-    .cover {
-      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e293b 100%);
-      color: #ffffff;
-      justify-content: center;
-      align-items: center;
-      text-align: center;
-    }
-    .cover h1 {
-      font-size: 48px;
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      color: #ffffff;
-      margin-bottom: 10px;
-    }
-    .cover h2 {
-      font-size: 20px;
-      font-weight: 500;
-      color: #c7d2fe;
-      margin-bottom: 25px;
-    }
-    .cover p {
-      font-size: 14px;
-      color: #94a3b8;
-    }
-    .cover .tagline {
-      display: inline-block;
-      padding: 8px 20px;
-      background: rgba(255,255,255,0.1);
-      border: 1px solid rgba(255,255,255,0.2);
-      border-radius: 9999px;
-      font-size: 14px;
-      font-weight: 600;
-      color: #e0e7ff;
-      margin-bottom: 25px;
-    }
-
-    .print-btn {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: #4f46e5;
-      color: white;
-      padding: 12px 24px;
-      border-radius: 12px;
-      font-weight: 700;
-      font-size: 14px;
-      border: none;
-      cursor: pointer;
-      box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.4);
-      z-index: 9999;
-    }
-    .print-btn:hover { background: #4338ca; }
-  </style>
+<meta charset="UTF-8">
+<title>VyaparVaani Pitch Deck</title>
+<style>
+  @page { size: 338.67mm 190.5mm; margin: 0; }
+  :root {
+    --ink: #0f172a; --muted: #475569; --soft: #64748b; --line: #e2e8f0;
+    --brand: #4f46e5; --brand2: #7c3aed; --good: #059669; --bad: #e11d48; --paper: #ffffff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Plus Jakarta Sans", "Noto Sans", "Noto Sans Devanagari", "Noto Sans Gujarati", system-ui, sans-serif; color: var(--ink); background: #e2e8f0; }
+  .slide {
+    width: 338.67mm; height: 190.5mm; background: var(--paper); position: relative; overflow: hidden;
+    padding: 16mm 20mm 14mm; display: flex; flex-direction: column; page-break-after: always; margin: 0 auto 8mm;
+  }
+  @media print { body { background: none; } .slide { margin: 0; } }
+  .kicker { font-size: 11pt; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--brand); }
+  h1 { font-size: 40pt; line-height: 1.05; letter-spacing: -.02em; }
+  h2 { font-size: 26pt; line-height: 1.15; letter-spacing: -.01em; margin: 3mm 0 7mm; }
+  h3 { font-size: 14pt; margin-bottom: 2.5mm; }
+  p, li { font-size: 13pt; line-height: 1.5; color: var(--muted); }
+  b, strong { color: var(--ink); }
+  ul { padding-left: 6mm; }
+  li { margin-bottom: 1.8mm; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10mm; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7mm; }
+  .card { border: 1px solid var(--line); border-radius: 5mm; padding: 6mm 7mm; }
+  .card.brand { border-color: #c7d2fe; background: #eef2ff; }
+  .card.good { border-color: #a7f3d0; background: #ecfdf5; }
+  .card.bad { border-color: #fecdd3; background: #fff1f2; }
+  .quote { font-size: 17pt; font-weight: 700; color: var(--ink); line-height: 1.4; }
+  .foot { margin-top: auto; display: flex; justify-content: space-between; font-size: 9.5pt; color: var(--soft); padding-top: 5mm; }
+  .num { font-size: 30pt; font-weight: 800; color: var(--brand); line-height: 1.05; }
+  table { width: 100%; border-collapse: collapse; font-size: 11pt; }
+  th { text-align: left; font-size: 9.5pt; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); padding: 2mm 3mm; border-bottom: 2px solid var(--line); }
+  td { padding: 2.4mm 3mm; border-bottom: 1px solid var(--line); color: var(--muted); vertical-align: top; line-height: 1.4; }
+  td:first-child { color: var(--ink); font-weight: 700; }
+  .cover { background: linear-gradient(135deg, #312e81 0%, #4f46e5 45%, #7c3aed 80%, #a21caf 100%); color: #fff; justify-content: center; }
+  .cover p, .cover b { color: #e0e7ff; }
+  .cover h1 { color: #fff; font-size: 50pt; }
+  .pill { display: inline-block; padding: 1.5mm 4mm; border-radius: 99px; background: rgba(255,255,255,.15); color: #fff; font-size: 11pt; font-weight: 700; margin-right: 2mm; }
+  .flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4mm; }
+  .step { border-radius: 4mm; background: #f8fafc; border: 1px solid var(--line); padding: 4mm; }
+  .step .n { font-weight: 800; color: var(--brand); font-size: 10pt; }
+  .step p { font-size: 11pt; line-height: 1.4; }
+  .step .say { color: var(--ink); font-weight: 700; }
+  .tight h2 { font-size: 22pt; margin: 2mm 0 5mm; }
+  .tight p, .tight li { font-size: 11.5pt; line-height: 1.42; }
+  .tight li { margin-bottom: 1.2mm; }
+  .tight .card { padding: 4.5mm 6mm; }
+  .tight h3 { font-size: 13pt; margin-bottom: 1.5mm; }
+  .tight .step p { font-size: 10.5pt; }
+</style>
 </head>
 <body>
 
-  <button class="print-btn no-print" onclick="window.print()">📥 Print / Save as PDF</button>
+<!-- 1. COVER -->
+<section class="slide cover">
+  <p class="kicker" style="color:#c7d2fe">Build for Bharat · Livelihoods and small business · Round 2</p>
+  <h1 style="margin:6mm 0 5mm">VyaparVaani</h1>
+  <p class="quote" style="color:#fff;font-size:22pt;max-width:250mm">The first khata where the customer’s own voice is the signature.</p>
+  <p style="margin-top:8mm;font-size:14pt;max-width:240mm">Vaani is a voice munim for Indian shops. The shopkeeper speaks in English, Hindi or Gujarati. Vaani writes the udhar, asks the customer to confirm it in their own voice, and seals that recording so it can be played back in any dispute. It works on the phone the shop already has, with zero API keys.</p>
+  <div style="margin-top:9mm"><span class="pill">व्यापार वाणी</span><span class="pill">વ્યાપાર વાણી</span><span class="pill">Team: Nandani Ramoliya</span></div>
+</section>
 
-  <!-- Slide 1: Cover -->
-  <div class="slide cover">
+<!-- 2. PROBLEM -->
+<section class="slide">
+  <p class="kicker">1 · Problem</p>
+  <h2>Udhar runs on trust and a notebook, and it breaks at the moment of a dispute.</h2>
+  <div class="grid2">
     <div>
-      <div class="badge" style="background: rgba(99,102,241,0.2); color: #a5b4fc; border-color: rgba(99,102,241,0.3); margin-bottom: 20px;">
-        Build for Bharat • Round 2 Submission
-      </div>
-      <h1>🎙️ VyaparVaani AI</h1>
-      <h2>व्यापार वाणी • વ્યાપાર વાણી</h2>
-      <div class="tagline">"Speak naturally. Let AI understand. Get business tasks done."</div>
-      <p style="margin-top: 15px;"><strong>Theme:</strong> Livelihoods and Small Business</p>
-      <p style="margin-top: 5px;"><strong>Participant:</strong> Nandani Ramoliya</p>
-    </div>
-  </div>
-
-  <!-- Slide 2: Problem Statement -->
-  <div class="slide">
-    <div class="header">
-      <span class="badge">Problem Statement</span>
-      <span class="slide-num">02 / 05</span>
+      <p class="quote">“Maine kab liya?” · “Itna nahi tha!” · “Aapne galat likha hoga.”</p>
+      <p style="margin-top:5mm">Small shops (kirana, cloth, hardware, wholesale traders) give goods on credit every day. The record is a handwritten khata or, at best, an app entry that only the shopkeeper typed. When a customer disputes it, it is the shopkeeper’s word against theirs.</p>
     </div>
     <div>
-      <h3 class="title">The Typing Barrier for Bharat's Shopkeepers</h3>
-      <p class="subtitle">Why traditional SaaS fails 63M+ Indian micro and small businesses</p>
-    </div>
-    <div class="content">
-      <div class="grid-3">
-        <div class="card">
-          <div class="stat">85%</div>
-          <h4>Rely on Paper & Memory</h4>
-          <p>Merchants in Surat, Ahmedabad, and Rajkot record transactions in paper books (Chopda) or WhatsApp voice notes.</p>
-        </div>
-        <div class="card">
-          <div class="stat">3.5 hrs</div>
-          <h4>Lost Weekly in Follow-ups</h4>
-          <p>Orders are delayed, client inquiries are forgotten, and payment reminders fall through the cracks without a CRM.</p>
-        </div>
-        <div class="card">
-          <div class="stat">0%</div>
-          <h4>Adoption of Complex ERPs</h4>
-          <p>Traditional accounting software is English-centric, demands 10+ form fields, and disrupts busy counter operations.</p>
-        </div>
-      </div>
-    </div>
-    <div class="footer">
-      <span>VyaparVaani AI — Build for Bharat</span>
-      <span>Challenge Brief: Voice-first solution for Indian livelihoods</span>
+      <h3>Why today’s tools don’t fix it</h3>
+      <ul>
+        <li><b>Hands are busy</b> cutting cloth, weighing and counting cash, so typing at the counter doesn’t happen.</li>
+        <li><b>Many customers can’t read or sign</b>, so a written or typed entry is not proof they agreed.</li>
+        <li><b>Apps are English-first forms.</b> Shopkeepers think and talk in Hindi, Gujarati or Hinglish.</li>
+        <li><b>Digital ledgers digitised the notebook, not the trust.</b> Money is lost, follow-ups are awkward, relationships suffer.</li>
+      </ul>
     </div>
   </div>
+  <div class="foot"><span>VyaparVaani · Pitch deck</span><span>2</span></div>
+</section>
 
-  <!-- Slide 3: Target Users -->
-  <div class="slide">
-    <div class="header">
-      <span class="badge">Target Users</span>
-      <span class="slide-num">03 / 05</span>
+<!-- 3. SOLUTION -->
+<section class="slide tight">
+  <p class="kicker">1 · Solution</p>
+  <h2>Vaani: speak the khata, and let the customer confirm it in their own voice.</h2>
+  <div class="flow">
+    <div class="step"><p class="n">1 · SHOPKEEPER SPEAKS</p><p class="say">“Rahul ko udhar likho.”</p><p>Vaani asks what is missing: “How many rupees?” → “5000”.</p></div>
+    <div class="step"><p class="n">2 · VAANI CONFIRMS</p><p class="say">“₹5,000 udhar. Balance becomes ₹20,000. Shall I write it?”</p><p>Shopkeeper says “Haan ji” (no tap).</p></div>
+    <div class="step"><p class="n">3 · CUSTOMER SIGNS BY VOICE</p><p class="say">“Haan, maine 5000 udhar liye.”</p><p>Recorded on the phone, stops by itself when they finish.</p></div>
+    <div class="step"><p class="n">4 · SEALED</p><p>SHA-256 fingerprint of the audio, <b>hash-chained</b> to every earlier signature. Edits or deletions are detected.</p></div>
+    <div class="step"><p class="n">5 · DISPUTE? PLAY IT</p><p class="say">“Rahul ka saboot sunao.”</p><p>Rahul’s own voice plays. Share the clip on WhatsApp in one tap.</p></div>
+  </div>
+  <div class="grid3" style="margin-top:5mm">
+    <div class="card brand"><h3>Talks like a person</h3><p>Asks follow-up questions, remembers “uska / उसका / એનું”, understands “Rahul <b>ne</b> diye” (he paid) vs “Rahul <b>ko</b> diye” (you gave), lets you interrupt, undoes mistakes by voice, gives the day’s hisaab and who to chase tomorrow.</p></div>
+    <div class="card good"><h3>Bharat languages</h3><p>English, हिन्दी, ગુજરાતી and Hinglish. Names in any script match the book (राहुल / રાહુલે → Rahul Sharma). Spoken numbers work: पांच हजार, dedh lakh, સાડા ત્રણ હજાર. Replies and WhatsApp reminders come in the chosen language.</p></div>
+    <div class="card"><h3>Phone-first, zero keys</h3><p>Big thumb-reach mic, installs as an app, hands-free yes/no. Everything (language engine, agent, signatures) runs on our own code. No paid AI API and no secret keys. One Docker command to run.</p></div>
+  </div>
+  <div class="foot"><span>Working today: 57 automated tests, end-to-end voice flow tested on an emulated Android phone and in Docker</span><span>3</span></div>
+</section>
+
+<!-- 4. USERS -->
+<section class="slide">
+  <p class="kicker">2 · Who it is for</p>
+  <h2>Shopkeepers who sell on credit, and the customers who buy from them.</h2>
+  <div class="grid3">
+    <div class="card brand"><p class="num">6.3 crore</p><p><b>MSMEs in India</b> (Ministry of MSME, NSS 73rd round: 633.88 lakh enterprises). Most are micro businesses run by one family.</p></div>
+    <div class="card good"><p class="num">1 crore+</p><p><b>Kirana and neighbourhood stores</b> (industry estimates), the most common place where daily udhar happens.</p></div>
+    <div class="card"><p class="num">58 crore+</p><p><b>People speak Hindi or Gujarati</b> (Census 2011: Hindi 52.8 crore, Gujarati 5.5 crore). These are the languages Vaani works in today.</p></div>
+  </div>
+  <div class="grid2" style="margin-top:8mm">
+    <div>
+      <h3>Primary user: the shop owner</h3>
+      <ul>
+        <li>40–55 years old, fluent in Gujarati or Hindi, uses WhatsApp daily and avoids typing.</li>
+        <li>Gives udhar to 20–200 regular customers. Loses money to forgotten or disputed entries.</li>
+        <li>Wants: “Just tell me who owes me, and give me proof when they argue.”</li>
+      </ul>
     </div>
     <div>
-      <h3 class="title">Built for Tier-2 & Tier-3 Indian Merchants</h3>
-      <p class="subtitle">Focusing on high-volume, verbal-negotiation businesses</p>
-    </div>
-    <div class="content">
-      <div class="grid-2">
-        <div class="card">
-          <h4>Primary Persona: Rameshbhai (Surat Wholesaler)</h4>
-          <p style="margin-top: 8px;">• <strong>Age:</strong> 48 | <strong>Business:</strong> Textile & Cotton Shirts Trader</p>
-          <p>• <strong>Language:</strong> Native Gujarati, Hindi, understands basic English terms</p>
-          <p>• <strong>Behavior:</strong> Sits at wholesale shop counter handling 30+ buyers daily; talks constantly on phone</p>
-          <p>• <strong>Pain Point:</strong> Cannot stop to type customer orders or prices into a laptop during rush hours</p>
-        </div>
-        <div class="card">
-          <h4>Target Market Segments</h4>
-          <p style="margin-top: 8px;">🛍️ <strong>Textile & Garment Traders:</strong> Surat, Ahmedabad, Jaipur</p>
-          <p>🏪 <strong>Kirana & Wholesalers:</strong> Bulk distributor network in Tier-2/3 towns</p>
-          <p>👗 <strong>Boutique Owners:</strong> Independent ethnic & designer wear studios</p>
-          <p>🔧 <strong>Local Service Providers:</strong> Hardware dealers, electrical suppliers</p>
-        </div>
-      </div>
-    </div>
-    <div class="footer">
-      <span>VyaparVaani AI — Build for Bharat</span>
-      <span>Empowering regional small businesses</span>
+      <h3>Second user: the customer</h3>
+      <ul>
+        <li>Confirms with their voice. No app, no signature, and literacy is not needed.</li>
+        <li>Gets reminders and receipts on WhatsApp in their own language.</li>
+        <li>Often a shopkeeper themselves (wholesale chains), so every customer is a potential next user.</li>
+      </ul>
     </div>
   </div>
+  <div class="foot"><span>Beachhead: Gujarat textile and kirana markets (Surat, Ahmedabad, Rajkot), then Hindi belt</span><span>4</span></div>
+</section>
 
-  <!-- Slide 4: Technology & Dependencies -->
-  <div class="slide">
-    <div class="header">
-      <span class="badge">Architecture & Dependencies</span>
-      <span class="slide-num">04 / 05</span>
-    </div>
-    <div>
-      <h3 class="title">Zero-Key Offline AI & Resilient Voice Pipeline</h3>
-      <p class="subtitle">Satisfies 100% of Build for Bharat submission criteria</p>
-    </div>
-    <div class="content">
-      <div class="grid-2">
-        <div class="card">
-          <h4>Zero-Key Offline NLP Guarantee</h4>
-          <p style="margin-top: 8px;">• <strong>Runs Without Secret Keys:</strong> Proprietary multilingual regex entity extractor parses quantities, products, and prices in English, Hindi, and Gujarati.</p>
-          <p>• <strong>Instant Response Time:</strong> Zero external latency or paid token costs.</p>
-          <p>• <strong>Cloud LLM Hook:</strong> Seamlessly switches to Gemini/OpenAI if API keys exist.</p>
-        </div>
-        <div class="card">
-          <h4>Core Stack & Voice Pipeline</h4>
-          <p style="margin-top: 8px;">🎙️ <strong>Web Speech API:</strong> Native in-browser speech recognition</p>
-          <p>🔊 <strong>Web Speech Synthesis:</strong> Voice confirmations in Indian accents</p>
-          <p>⚡ <strong>FastAPI Backend:</strong> Async Python 3.12 with Pydantic validation</p>
-          <p>💾 <strong>SQLite / Supabase:</strong> Pre-seeded with authentic Indian commerce data</p>
-        </div>
-      </div>
-    </div>
-    <div class="footer">
-      <span>VyaparVaani AI — Build for Bharat</span>
-      <span>Evaluator Ready • Zero Paid Dependencies</span>
-    </div>
-  </div>
+<!-- 5. DEPENDENCIES -->
+<section class="slide">
+  <p class="kicker">3 · What it depends on</p>
+  <h2>No paid AI model and no API keys. Every outside piece has a fallback.</h2>
+  <table>
+    <tr><th style="width:20%">Dependency</th><th style="width:27%">Used for</th><th style="width:14%">Cost today</th><th>If it gets costly or stops working</th></tr>
+    <tr><td>Browser speech recognition (Web Speech API)</td><td>Speech to text in en-IN, hi-IN, gu-IN. In Chrome it runs on Google’s speech service.</td><td>Free</td><td>Typing and quick chips always work. Swap in open-source on-device models (Whisper, AI4Bharat IndicConformer) or Bhashini (Government of India) behind the same interface.</td></tr>
+    <tr><td>Browser speech synthesis</td><td>Vaani’s spoken replies, using the phone’s own Indian voices</td><td>Free, on device</td><td>Every reply is also shown as text. Open-source Indic TTS can be bundled later.</td></tr>
+    <tr><td>Language understanding</td><td>Intents, names, amounts, follow-up questions, replies in three languages</td><td>Free (our own Python code)</td><td>No outside dependency. An LLM could be added later as an optional upgrade, never as a requirement.</td></tr>
+    <tr><td>Voice signatures</td><td>Recording (MediaRecorder), SHA-256 hash chain, SQLite storage</td><td>Free</td><td>No outside dependency. Standard cryptography, works offline.</td></tr>
+    <tr><td>WhatsApp</td><td>Reminders, receipts, sharing the voice proof (wa.me links and the phone’s share sheet)</td><td>Free</td><td>Falls back to SMS or copy-paste. We do not use the paid WhatsApp Business API.</td></tr>
+    <tr><td>Hosting</td><td>One Docker container (FastAPI and the web app) plus a SQLite file</td><td>One small server</td><td>Portable to any cloud or a shop’s own PC. Move to Postgres when shops need multi-device sync.</td></tr>
+  </table>
+  <div class="foot"><span>Biggest single risk: speech quality on low-end phones. Mitigation: typing fallback today, on-device models next.</span><span>5</span></div>
+</section>
 
-  <!-- Slide 5: Launch Plan & Roadmap -->
-  <div class="slide">
-    <div class="header">
-      <span class="badge">Launch & Roadmap</span>
-      <span class="slide-num">05 / 05</span>
+<!-- 6. LAUNCH -->
+<section class="slide tight">
+  <p class="kicker">4 · Launch plan</p>
+  <h2>Start in one market, win shop by shop, let every reminder recruit the next shop.</h2>
+  <div class="grid3">
+    <div class="card brand">
+      <h3>First 50 shops (month 1–2)</h3>
+      <ul>
+        <li>Pick one dense market (e.g., a Surat textile market) and onboard shops in person, in Gujarati.</li>
+        <li>Install in 2 minutes: open a link, then “Add to Home screen”. No app store, no sign-up form.</li>
+        <li>Import the top 20 udhar customers by voice during onboarding.</li>
+      </ul>
     </div>
-    <div>
-      <h3 class="title">Go-to-Market & Future Roadmap</h3>
-      <p class="subtitle">From prototype to empowering millions of Bharat shopkeepers</p>
+    <div class="card good">
+      <h3>Grow through the customers (month 3–6)</h3>
+      <ul>
+        <li>Every WhatsApp reminder, receipt and voice proof carries “Sent with Vaani”.</li>
+        <li>Wholesale customers are shopkeepers too, so each signed udhar shows Vaani to a new shop.</li>
+        <li>Partner with vyapari mandals (trader associations) and distributors’ salesmen who visit shops weekly.</li>
+      </ul>
     </div>
-    <div class="content">
-      <div class="grid-3">
-        <div class="card">
-          <h4>Phase 1: Pilot Launch</h4>
-          <p><strong>Month 1-2</strong></p>
-          <p style="margin-top: 6px;">• Roll out to 50 Surat textile traders.</p>
-          <p>• WhatsApp bot integration allowing audio voice notes forwarding.</p>
-          <p>• Refine Gujarati and Hinglish colloquial vocabulary.</p>
-        </div>
-        <div class="card">
-          <h4>Phase 2: UPI & Invoicing</h4>
-          <p><strong>Month 3-5</strong></p>
-          <p style="margin-top: 6px;">• Automatic voice-generated GST invoices.</p>
-          <p>• Instant UPI QR code & WhatsApp payment links sent to buyers.</p>
-          <p>• Daily spoken profit & loss summaries.</p>
-        </div>
-        <div class="card">
-          <h4>Phase 3: Bharat Expansion</h4>
-          <p><strong>Month 6+</strong></p>
-          <p style="margin-top: 6px;">• Expand to Marathi, Tamil, Telugu, and Bengali.</p>
-          <p>• Integration with ONDC network for open commerce sales.</p>
-          <p>• Micro-lending eligibility reports based on voice order volumes.</p>
-        </div>
-      </div>
-    </div>
-    <div class="footer">
-      <span>VyaparVaani AI — Build for Bharat</span>
-      <span>Nandani Ramoliya • Submission Deadline: 30 Nov</span>
+    <div class="card">
+      <h3>Scale and earn (month 6+)</h3>
+      <ul>
+        <li>Core khata stays free. Paid plan: backups, multiple staff phones, scheduled reminders.</li>
+        <li>Partnerships with UPI soundbox and payment players, so payments land directly in the khata.</li>
+        <li>With the shop’s consent, the voice-verified credit history can support working-capital lending.</li>
+      </ul>
     </div>
   </div>
+  <div class="grid2" style="margin-top:5mm">
+    <div class="card"><h3>What we measure</h3><p>Weekly active shops · entries made by voice · share of udhar that is voice-signed · money collected after reminders · disputes resolved with a played proof.</p></div>
+    <div class="card"><h3>For the finale</h3><p>On-device speech for weak networks, more languages (Marathi, Tamil), scheduled reminders with UPI pay links, multi-device sync, and a pilot with real shops.</p></div>
+  </div>
+  <div class="foot"><span>VyaparVaani · github.com/NandaniRamoliya/vyapar-vaani</span><span>6</span></div>
+</section>
 
 </body>
 </html>
