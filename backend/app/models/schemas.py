@@ -1,4 +1,4 @@
-from typing import Optional, Any
+from typing import Optional, Any, Literal
 from pydantic import BaseModel, Field
 from datetime import datetime
 
@@ -67,12 +67,21 @@ class ConfirmActionRequest(BaseModel):
     confirmed: bool = True
     edited_data: Optional[dict[str, Any]] = None
 
+class LedgerEntryCreate(BaseModel):
+    customer_id: Optional[str] = None
+    customer_name: Optional[str] = None
+    entry_type: Literal["credit", "payment"]
+    amount: float = Field(..., gt=0)
+    note: Optional[str] = ""
+
 class DashboardStats(BaseModel):
     total_customers: int
     total_orders: int
     total_revenue: float
     pending_orders: int
     today_reminders: int
+    total_outstanding: float = 0.0
+    customers_with_dues: int = 0
     recent_activity: list[dict[str, Any]]
 
 class ApiResponse(BaseModel):

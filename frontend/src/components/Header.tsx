@@ -23,6 +23,8 @@ export const Header: React.FC<HeaderProps> = ({
         return { title: 'Orders Management', subtitle: 'Real-time order entries created via voice commands' };
       case 'customers':
         return { title: 'Customers & Inquiries', subtitle: 'Directory of clients, phone numbers, and past history' };
+      case 'khata':
+        return { title: 'Khata Book (Udhar Ledger)', subtitle: 'Who owes you, how much, and since when, kept by voice' };
       case 'reminders':
         return { title: 'Reminders & Follow-ups', subtitle: 'Scheduled reminders and pending business tasks' };
       case 'history':

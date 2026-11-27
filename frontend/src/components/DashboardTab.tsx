@@ -10,7 +10,8 @@ import {
   Sparkles,
   ChevronRight,
   TrendingUp,
-  Package
+  Package,
+  BookOpen
 } from 'lucide-react';
 import { DashboardStats, Order, LanguageCode } from '../types';
 
@@ -89,7 +90,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
       </div>
 
       {/* 4 Key Business Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         
         {/* Revenue */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-slate-300 transition-colors">
@@ -109,6 +110,27 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Udhar Outstanding (Khata) */}
+        <button
+          onClick={() => onSelectTab('khata')}
+          className="text-left bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-rose-300 transition-colors cursor-pointer"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Udhar Outstanding</span>
+            <div className="w-9 h-9 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600">
+              <BookOpen className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <p className="text-2xl font-black text-rose-700 tracking-tight">
+              ₹{Number(stats?.total_outstanding || 0).toLocaleString('en-IN')}
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              {stats?.customers_with_dues || 0} customers owe you · Open khata →
+            </p>
+          </div>
+        </button>
 
         {/* Total Orders */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-slate-300 transition-colors">

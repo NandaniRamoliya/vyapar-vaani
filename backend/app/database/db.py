@@ -1,7 +1,7 @@
 import sqlite3
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Any
 from app.config import settings
@@ -72,6 +72,25 @@ def init_db():
     )
     ''')
 
+    # 5. Khata / Udhar Ledger Table
+    # entry_type: 'credit'  -> goods given on udhar (customer owes more)
+    #             'payment' -> money received / jama (customer owes less)
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS ledger_entries (
+        id TEXT PRIMARY KEY,
+        customer_id TEXT NOT NULL,
+        customer_name TEXT NOT NULL,
+        entry_type TEXT NOT NULL CHECK (entry_type IN ('credit', 'payment')),
+        amount REAL NOT NULL CHECK (amount > 0),
+        note TEXT,
+        source TEXT NOT NULL DEFAULT 'manual',
+        order_id TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (customer_id) REFERENCES customers(id)
+    )
+    ''')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_ledger_customer ON ledger_entries(customer_id)')
+
     conn.commit()
 
     # Seed initial realistic data if customers is empty
@@ -80,6 +99,15 @@ def init_db():
     if count == 0:
         seed_sample_data(cursor)
         conn.commit()
+
+    # Seed khata entries for the demo customers (also upgrades databases created
+    # before the ledger existed, as long as the demo customers are still there).
+    cursor.execute('SELECT COUNT(*) FROM ledger_entries')
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("SELECT COUNT(*) FROM customers WHERE id IN ('cust_1', 'cust_2', 'cust_3', 'cust_4')")
+        if cursor.fetchone()[0] == 4:
+            seed_ledger_data(cursor)
+            conn.commit()
 
     conn.close()
 
@@ -126,4 +154,24 @@ def seed_sample_data(cursor):
     cursor.executemany(
         'INSERT INTO voice_interactions (id, transcript, detected_intent, language, extracted_data, confirmation_required, confirmation_prompt, spoken_response, execution_status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         interactions_data
+    )
+
+
+def seed_ledger_data(cursor):
+    def days_ago(n: int) -> str:
+        return (datetime.now() - timedelta(days=n)).strftime("%Y-%m-%d %H:%M:%S")
+
+    # Balances after seeding: Rahul ₹15,000 · Priya ₹8,500 · Anjali ₹4,000 · Suresh settled
+    ledger_data = [
+        ("led_seed_1", "cust_1", "Rahul Sharma", "credit", 25000.0, "50 Cotton Shirts on udhar", "manual", "ord_1", days_ago(18)),
+        ("led_seed_2", "cust_1", "Rahul Sharma", "payment", 10000.0, "Part payment via UPI", "manual", None, days_ago(6)),
+        ("led_seed_3", "cust_2", "Priya Patel", "credit", 8500.0, "Festive saree lot - pay after Diwali", "manual", None, days_ago(32)),
+        ("led_seed_4", "cust_3", "Suresh Verma", "credit", 24000.0, "Denim jeans lot", "manual", "ord_3", days_ago(40)),
+        ("led_seed_5", "cust_3", "Suresh Verma", "payment", 24000.0, "Full settlement - cash", "manual", None, days_ago(12)),
+        ("led_seed_6", "cust_4", "Anjali Gupta", "credit", 6000.0, "Kurti sample set", "manual", None, days_ago(9)),
+        ("led_seed_7", "cust_4", "Anjali Gupta", "payment", 2000.0, "Cash at counter", "manual", None, days_ago(3)),
+    ]
+    cursor.executemany(
+        'INSERT INTO ledger_entries (id, customer_id, customer_name, entry_type, amount, note, source, order_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        ledger_data
     )

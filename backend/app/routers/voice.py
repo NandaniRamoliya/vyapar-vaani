@@ -6,6 +6,7 @@ from app.models.schemas import ProcessVoiceRequest, ConfirmActionRequest, VoiceI
 from app.services.nlp_parser import NLPParser
 from app.services.business_logic import BusinessService
 from app.database.db import get_db_connection
+from app.services.khata import format_inr
 
 router = APIRouter(prefix="/api/voice", tags=["Voice Assistant"])
 
@@ -20,6 +21,8 @@ def process_voice_command(request: ProcessVoiceRequest):
 
     # Parse using Multilingual NLP Parser
     parsed = NLPParser.parse(request.transcript, request.language)
+    # Khata intents: resolve the customer and attach live balances before confirming
+    BusinessService.enrich_khata(parsed, request.language)
     spoken_response = parsed["spoken_response"]
 
     # Enrich query intents with real database numbers!
@@ -27,19 +30,35 @@ def process_voice_command(request: ProcessVoiceRequest):
     cursor = conn.cursor()
 
     if parsed["intent"] == "show_business_summary":
-        cursor.execute("SELECT COUNT(*), COALESCE(SUM(total_amount), 0) FROM orders")
+        today = datetime.now().strftime("%Y-%m-%d")
+        cursor.execute(
+            "SELECT COUNT(*), COALESCE(SUM(total_amount), 0) FROM orders WHERE created_at LIKE ? AND status != 'cancelled'",
+            (f"{today}%",),
+        )
         row = cursor.fetchone()
         tot_orders, tot_rev = row[0], float(row[1])
         cursor.execute("SELECT COUNT(*) FROM orders WHERE status = 'pending'")
         pending_count = cursor.fetchone()[0]
+        cursor.execute(
+            "SELECT COALESCE(SUM(amount), 0) FROM ledger_entries WHERE entry_type = 'payment' AND created_at LIKE ?",
+            (f"{today}%",),
+        )
+        collected_today = float(cursor.fetchone()[0])
 
         if "gu" in request.language:
-            spoken_response = f"આજનો કુલ વેપાર {tot_orders} ઓર્ડરમાં ₹{tot_rev:,.0f} થયો છે, અને {pending_count} ઓર્ડર બાકી છે."
+            spoken_response = f"આજનો કુલ વેપાર {tot_orders} ઓર્ડરમાં ₹{format_inr(tot_rev)} થયો છે, અને {pending_count} ઓર્ડર બાકી છે."
         elif "hi" in request.language:
-            spoken_response = f"आज का कुल व्यापार {tot_orders} ऑर्डर्स में ₹{tot_rev:,.0f} है, और {pending_count} ऑર્ડર पेंडिंग हैं।"
+            spoken_response = f"आज का कुल व्यापार {tot_orders} ऑर्डर्स में ₹{format_inr(tot_rev)} है, और {pending_count} ऑर्डर पेंडिंग हैं।"
+        elif tot_orders == 0:
+            spoken_response = f"No sales recorded yet today. You have {pending_count} pending orders to dispatch."
         else:
-            spoken_response = f"Your total business today is rupees {int(tot_rev):,} across {tot_orders} orders, with {pending_count} pending dispatches."
-        parsed["extracted_data"]["stats"] = {"total_revenue": tot_rev, "total_orders": tot_orders, "pending_orders": pending_count}
+            spoken_response = f"Today you sold rupees {format_inr(tot_rev)} across {tot_orders} orders, with {pending_count} pending dispatches."
+        if collected_today > 0 and "gu" not in request.language and "hi" not in request.language:
+            spoken_response += f" You also collected rupees {format_inr(collected_today)} of udhar today."
+        parsed["extracted_data"]["stats"] = {
+            "total_revenue": tot_rev, "total_orders": tot_orders,
+            "pending_orders": pending_count, "collected_today": collected_today,
+        }
 
     elif parsed["intent"] == "list_orders":
         cursor.execute("SELECT customer_name, total_amount FROM orders WHERE status = 'pending' LIMIT 3")
@@ -68,9 +87,13 @@ def process_voice_command(request: ProcessVoiceRequest):
     executed_result = None
 
     if request.auto_execute and parsed["confirmation_required"]:
-        executed_result, spoken_response = BusinessService.execute_confirmed_action(
-            parsed["intent"], parsed["extracted_data"], request.language
-        )
+        try:
+            executed_result, spoken_response = BusinessService.execute_confirmed_action(
+                parsed["intent"], parsed["extracted_data"], request.language
+            )
+        except ValueError as e:
+            conn.close()
+            raise HTTPException(status_code=400, detail=str(e))
         initial_status = "executed"
 
     cursor.execute('''
@@ -125,6 +148,11 @@ def confirm_voice_action(request: ConfirmActionRequest):
         conn.close()
         raise HTTPException(status_code=404, detail="Voice interaction not found")
 
+    # Never execute the same voice action twice (a spoken "yes" and a button tap can race)
+    if row["execution_status"] != "pending_confirmation":
+        conn.close()
+        raise HTTPException(status_code=409, detail=f"This action is already {row['execution_status']}")
+
     intent = row["detected_intent"]
     language = row["language"]
     extracted_data = json.loads(row["extracted_data"])
@@ -158,7 +186,11 @@ def confirm_voice_action(request: ConfirmActionRequest):
         )
 
     # Execute action
-    result_data, spoken_response = BusinessService.execute_confirmed_action(intent, extracted_data, language)
+    try:
+        result_data, spoken_response = BusinessService.execute_confirmed_action(intent, extracted_data, language)
+    except ValueError as e:
+        conn.close()
+        raise HTTPException(status_code=400, detail=str(e))
 
     # Mark interaction as executed
     cursor.execute(
