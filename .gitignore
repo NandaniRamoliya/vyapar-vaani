@@ -1,0 +1,23 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+test_*.db
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
+.tmp/
+*.tsbuildinfo
+
+# Env & Secrets (Never commit secrets!)
+.env
+.env.local
+
+# OS
+Thumbs.db
+.DS_Store
