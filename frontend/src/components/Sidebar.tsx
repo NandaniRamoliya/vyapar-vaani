@@ -8,7 +8,8 @@ import {
   History, 
   Settings as SettingsIcon,
   Sparkles,
-  Store
+  Store,
+  BookOpen
 } from 'lucide-react';
 import { LanguageCode } from '../types';
 
@@ -32,6 +33,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         overview: 'ડેશબોર્ડ',
         orders: 'ઓર્ડર્સ',
         customers: 'ગ્રાહકો',
+        khata: 'ખાતાવહી / ઉધાર',
         reminders: 'રિમાઇન્ડર',
         history: 'વોઇસ હિસ્ટ્રી',
         settings: 'સેટિંગ્સ',
@@ -46,6 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         overview: 'डैशबोर्ड',
         orders: 'ऑर्डर्स',
         customers: 'ग्राहक',
+        khata: 'खाता / उधार',
         reminders: 'रिमाइंडर',
         history: 'वॉइस हिस्ट्री',
         settings: 'सेटिंग्स',
@@ -59,6 +62,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       overview: 'Overview',
       orders: 'Orders',
       customers: 'Customers',
+      khata: 'Khata / Udhar',
       reminders: 'Reminders',
       history: 'Voice History',
       settings: 'Settings',
@@ -75,6 +79,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'overview', label: labels.overview, icon: LayoutDashboard },
     { id: 'orders', label: labels.orders, icon: ShoppingBag },
     { id: 'customers', label: labels.customers, icon: Users },
+    { id: 'khata', label: labels.khata, icon: BookOpen },
     { id: 'reminders', label: labels.reminders, icon: BellRing },
     { id: 'history', label: labels.history, icon: History },
     { id: 'settings', label: labels.settings, icon: SettingsIcon },

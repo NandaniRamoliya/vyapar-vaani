@@ -293,7 +293,15 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
               <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3">
                 <CheckCircle2 className="w-8 h-8" />
               </div>
-              <h4 className="text-base font-bold text-slate-900">Order Confirmed & Saved!</h4>
+              <h4 className="text-base font-bold text-slate-900">
+                {({
+                  create_order: 'Order Confirmed & Saved!',
+                  add_udhar: 'Udhar Written in Khata!',
+                  record_payment: 'Payment Recorded!',
+                  create_reminder: 'Reminder Saved!',
+                  add_customer: 'Customer Added!',
+                } as Record<string, string>)[executedResult?.intent || ''] || 'Done!'}
+              </h4>
               <p className="text-xs text-slate-600 mt-1 max-w-sm px-4">
                 {successMessage || 'Your transaction has been recorded in the database.'}
               </p>

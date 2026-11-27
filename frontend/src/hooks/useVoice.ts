@@ -20,6 +20,7 @@ export function useVoice({ language, onFinalTranscript }: UseVoiceOptions) {
   const onFinalTranscriptRef = useRef(onFinalTranscript);
   const availableVoicesRef = useRef<SpeechSynthesisVoice[]>([]);
   const hasSubmittedRef = useRef<boolean>(false);
+  const silenceMsRef = useRef<number>(2200);
 
   // Keep callback ref updated without causing re-renders
   useEffect(() => {
@@ -90,17 +91,31 @@ export function useVoice({ language, onFinalTranscript }: UseVoiceOptions) {
     finalizeSpeech();
   }, [finalizeSpeech]);
 
+  /** Turn the mic off and throw away anything heard so far (nothing is submitted). */
+  const cancelListening = useCallback(() => {
+    hasSubmittedRef.current = true;
+    accumulatedTextRef.current = '';
+    setInterimTranscript('');
+    abortListeningInternal();
+  }, [abortListeningInternal]);
+
   const resetSilenceTimer = useCallback(() => {
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
     }
-    // Automatically finalize after 2.2 seconds of silence/pause
+    // Automatically finalize after a pause (2.2s for commands, shorter for yes/no replies)
     silenceTimerRef.current = setTimeout(() => {
       finalizeSpeech();
-    }, 2200);
+    }, silenceMsRef.current);
   }, [finalizeSpeech]);
 
-  const startListening = useCallback(async () => {
+  /**
+   * Start the mic. `silenceMs` shortens the pause detection, e.g. for one-word "yes"/"haan" replies.
+   * Safe to pass directly as an onClick handler (the click event is ignored).
+   */
+  const startListening = useCallback(async (opts?: { silenceMs?: number } | unknown) => {
+    const requested = (opts as { silenceMs?: number } | undefined)?.silenceMs;
+    silenceMsRef.current = typeof requested === 'number' ? requested : 2200;
     setError(null);
     setTranscript('');
     setInterimTranscript('');
@@ -201,8 +216,23 @@ export function useVoice({ language, onFinalTranscript }: UseVoiceOptions) {
   /**
    * Warm, natural human Indian TTS speech synthesis
    */
-  const speak = useCallback((text: string, lang: LanguageCode = language) => {
-    if (!('speechSynthesis' in window)) return;
+  const speak = useCallback((text: string, lang: LanguageCode = language, onEnd?: () => void) => {
+    // Fire onEnd exactly once: on the utterance's end/error, or via a fallback timer because
+    // Chrome occasionally never fires `onend` for longer utterances.
+    let finished = false;
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      setIsSpeaking(false);
+      onEnd?.();
+    };
+
+    if (!('speechSynthesis' in window)) {
+      finish();
+      return;
+    }
 
     window.speechSynthesis.cancel(); // Cancel any ongoing speech
 
@@ -250,8 +280,12 @@ export function useVoice({ language, onFinalTranscript }: UseVoiceOptions) {
     }
 
     utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
+    utterance.onend = finish;
+    utterance.onerror = finish;
+
+    if (onEnd) {
+      fallbackTimer = setTimeout(finish, 2500 + naturalText.length * 90);
+    }
 
     window.speechSynthesis.speak(utterance);
   }, [language]);
@@ -272,6 +306,7 @@ export function useVoice({ language, onFinalTranscript }: UseVoiceOptions) {
     error,
     startListening,
     stopListening,
+    cancelListening,
     speak,
     stopSpeaking,
     setTranscript,

@@ -1,4 +1,7 @@
-import { DashboardStats, Order, Customer, Reminder, VoiceInteraction, VoiceProcessResult, LanguageCode } from '../types';
+import {
+  DashboardStats, Order, Customer, Reminder, VoiceInteraction, VoiceProcessResult, LanguageCode,
+  KhataSummary, CustomerLedger, LedgerEntry, LedgerEntryType,
+} from '../types';
 
 const API_BASE = '/api';
 
@@ -35,7 +38,7 @@ export const api = {
       }),
     });
     const data = await res.json();
-    if (!data.success) throw new Error(data.message || 'Failed to confirm action');
+    if (!res.ok || !data.success) throw new Error(data.detail || data.message || 'Failed to confirm action');
     return data.data;
   },
 
@@ -119,6 +122,40 @@ export const api = {
     const res = await fetch(`${API_BASE}/voice/history`);
     const data = await res.json();
     return data.data || [];
+  },
+
+  async getKhata(): Promise<KhataSummary> {
+    const res = await fetch(`${API_BASE}/khata`);
+    const data = await res.json();
+    return data.data;
+  },
+
+  async getCustomerLedger(customerId: string): Promise<CustomerLedger> {
+    const res = await fetch(`${API_BASE}/khata/${customerId}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to load khata');
+    return data.data;
+  },
+
+  async addKhataEntry(entry: {
+    customer_id?: string;
+    customer_name?: string;
+    entry_type: LedgerEntryType;
+    amount: number;
+    note?: string;
+  }): Promise<LedgerEntry & { balance: number }> {
+    const res = await fetch(`${API_BASE}/khata/entries`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(entry),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.detail?.[0]?.msg || data.detail || 'Failed to save khata entry');
+    return data.data;
+  },
+
+  async deleteKhataEntry(entryId: string): Promise<void> {
+    await fetch(`${API_BASE}/khata/entries/${entryId}`, { method: 'DELETE' });
   },
 
   async getSettings(): Promise<any> {

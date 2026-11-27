@@ -16,6 +16,59 @@ INDIAN_NUMBER_WORDS = {
     "વીસ": 20, "ત્રીસ": 30, "ચાલીસ": 40, "પચાસ": 50, "સો": 100, "હજાર": 1000,
 }
 
+# Spoken first names in Indic scripts -> the Latin spelling stored in the customer book
+NAME_ALIASES = {
+    "राहुल": "Rahul", "प्रिया": "Priya", "सुरेश": "Suresh", "अंजलि": "Anjali", "अमित": "Amit",
+    "રાહુલ": "Rahul", "પ્રિયા": "Priya", "સુરેશ": "Suresh", "અંજલિ": "Anjali", "અમિત": "Amit",
+}
+
+# ---- Khata / Udhar vocabulary (English + Hinglish + Hindi + Gujarati) ----
+KHATA_LIST_DUES_WORDS = [
+    "who owes", "who all owe", "who has to pay", "all dues", "total udhar", "total udhaar", "total dues",
+    "total outstanding", "outstanding list", "udhar list", "khata list", "pending dues", "pending payments",
+    "kiska kitna", "kis kis", "sabka udhar", "sab ka udhar", "all udhar",
+    "किसका कितना", "सबका उधार", "कुल उधार", "કોના કેટલા", "કુલ ઉધાર",
+]
+KHATA_BALANCE_WORDS = [
+    "owe", "owes", "balance", "kitna baaki", "kitna baki", "kitne baaki", "kitne baki", "baaki kitna",
+    "baki kitna", "kitna udhar", "kitna udhaar", "udhar kitna", "dues of", "khata dikhao", "khata batao",
+    "check khata", "khata check", "how much is pending", "pending amount", "pending balance",
+    "कितना बाकी", "कितने बाकी", "बाकी कितना", "कितना उधार", "खाता दिखाओ",
+    "કેટલા બાકી", "કેટલું બાકી", "બાકી કેટલા", "ખાતું બતાવો",
+]
+KHATA_PAYMENT_WORDS = [
+    "paid", "received", "receive", "got payment", "payment of", "payment from", "payment mila",
+    "payment aaya", "jama", "gave me", "returned", "cleared", "chukaya", "chuka diya", "de diye",
+    "de gaya", "mil gaye", "mile",
+    "जमा", "चुकाए", "चुकाया", "दे दिए", "मिले", "मिल गए",
+    "ભર્યા", "જમા", "ચૂકવ્યા", "આપ્યા", "મળ્યા",
+]
+KHATA_CREDIT_WORDS = [
+    "udhar", "udhaar", "udhari", "on credit", "credit", "khata", "khate", "account",
+    "baaki likho", "baki likho", "likh do", "likh lo",
+    "उधार", "खाते में", "बाकी लिखो", "ઉધાર", "ખાતામાં", "ખાતે",
+]
+KHATA_NAME_STOPWORDS = {
+    "me", "my", "the", "a", "an", "i", "you", "him", "her", "them", "us", "it", "this", "that", "his",
+    "udhar", "udhaar", "khata", "account", "balance", "credit", "payment", "rupees", "rupee", "rs", "inr",
+    "today", "now", "cash", "upi", "gpay", "phonepe", "paytm", "add", "how", "much", "who", "all",
+    "everyone", "total", "check", "show", "pending", "received", "record", "kitna", "kitne", "baaki",
+    "baki", "hai", "write", "likho", "customer", "dues", "money", "please", "bhai", "bhaiya", "ji",
+    "has", "have", "does", "did", "is", "was", "and", "for", "from", "to", "of", "in",
+}
+
+
+def _contains_any(lower: str, raw: str, words: list[str]) -> bool:
+    """Word-boundary match for Latin phrases (so 'mile' doesn't hit 'smile'), substring match for Indic scripts."""
+    for w in words:
+        if w.isascii():
+            if re.search(rf"(?<![a-z]){re.escape(w)}(?![a-z])", lower):
+                return True
+        elif w in raw:
+            return True
+    return False
+
+
 class NLPParser:
     """
     Multilingual Intent and Entity Extraction Engine for Indian Small Businesses.
@@ -41,6 +94,20 @@ class NLPParser:
         elif intent == "add_customer":
             extracted_data, prompt, spoken = cls._extract_customer_entities(text, lower, language)
             confirmation_required = True
+        elif intent in ("add_udhar", "record_payment"):
+            extracted_data, prompt, spoken = cls._extract_khata_entry_entities(text, lower, language, intent)
+            confirmation_required = not extracted_data.get("missing")
+        elif intent == "check_balance":
+            name = cls.extract_khata_name(text)
+            extracted_data = {"customer_name": name} if name else {"missing": ["customer_name"]}
+            confirmation_required = False
+            prompt = ""
+            spoken = "" if name else cls._ask_for_name(language)
+        elif intent == "list_dues":
+            extracted_data = {"scope": "all"}
+            confirmation_required = False
+            prompt = ""
+            spoken = ""
         elif intent == "list_orders":
             extracted_data = {"filter": "pending" if ("pending" in lower or "बाकी" in text or "બાકી" in text) else "all"}
             confirmation_required = False
@@ -78,14 +145,20 @@ class NLPParser:
             return "create_order"
         if any(w in raw for w in ["ऑर्डर जोड़ो", "ऑर्डर लिखो", "ऑर्डर बनाओ", "का ऑर्डर", "ઓર્ડર ઉમેરો", "ઓર્ડર લખો", "ઓર્ડર કરો", "નો ઓર્ડર"]):
             return "create_order"
-        if ("shirts" in lower or "sarees" in lower or "kurtis" in lower or "jeans" in lower) and ("total" in lower or "rupees" in lower or "₹" in raw or "रुपये" in raw or "રૂપિયા" in raw):
-            return "create_order"
 
         # Check Reminder Creation
         if any(w in lower for w in ["remind me", "add reminder", "set reminder", "call reminder", "reminder dalo", "yaad dilao"]):
             return "create_reminder"
         if any(w in raw for w in ["रिमाइंडर", "याद दिलाना", "याद दिलाओ", "યાદ અપાવો", "રિમાઇન્ડર", "કોલ કરવાનું યાદ"]):
             return "create_reminder"
+
+        # Check Khata / Udhar (credit ledger)
+        khata_intent = cls._detect_khata_intent(lower, raw)
+        if khata_intent:
+            return khata_intent
+
+        if ("shirts" in lower or "sarees" in lower or "kurtis" in lower or "jeans" in lower) and ("total" in lower or "rupees" in lower or "₹" in raw or "रुपये" in raw or "રૂપિયા" in raw):
+            return "create_order"
 
         # Check Customer Creation
         if any(w in lower for w in ["add customer", "new customer", "create customer", "grahak add karo", "nava grahak"]):
@@ -107,6 +180,8 @@ class NLPParser:
 
         # Check Business Summary
         if any(w in lower for w in ["business summary", "total sales", "revenue", "how many orders", "sales summary", "today's summary", "aaj ka vyapar"]):
+            return "show_business_summary"
+        if _contains_any(lower, raw, ["sell", "sold", "sales", "bikri", "becha", "kitna becha", "बिक्री", "बेचा", "વેચાણ", "વેચ્યું"]):
             return "show_business_summary"
         if any(w in raw for w in ["आज का व्यापार", "समरी", "કુલ વેચાણ", "આજનો વેપાર"]):
             return "show_business_summary"
@@ -199,11 +274,14 @@ class NLPParser:
                 if candidate.lower() not in ["rupees", "rs", "inr", "for", "total", "at", "to"]:
                     product_name = candidate
 
+        payment_mode = "udhar" if _contains_any(lower, raw, ["udhar", "udhaar", "on credit", "khate me", "khate mein", "baaki", "उधार", "ઉધાર"]) else "paid"
+
         extracted_data = {
             "customer_name": customer_name,
             "product_name": product_name,
             "quantity": quantity,
             "total_amount": total_amount,
+            "payment_mode": payment_mode,
         }
 
         # Formulate confirmation prompts & spoken confirmations
@@ -214,8 +292,9 @@ class NLPParser:
             prompt = f"आप {customer_name} के लिए ₹{total_amount:,.0f} में {quantity} {product_name} का ऑर्डर जोड़ना चाहते हैं। क्या मैं इसे सेव करूँ?"
             spoken = f"{customer_name} के लिए {quantity} {product_name} का ऑर्डर सेव करूँ?"
         else:
-            prompt = f"You want to add an order of {quantity} {product_name} for {customer_name} for ₹{total_amount:,.0f}. Should I save this order?"
-            spoken = f"You want to add {quantity} {product_name} for {customer_name} for rupees {int(total_amount)}. Should I save this order?"
+            udhar_note = " on udhar" if payment_mode == "udhar" else ""
+            prompt = f"You want to add an order of {quantity} {product_name} for {customer_name} for ₹{total_amount:,.0f}{udhar_note}. Should I save this order?"
+            spoken = f"You want to add {quantity} {product_name} for {customer_name} for rupees {int(total_amount)}{udhar_note}. Should I save this order?"
 
         return extracted_data, prompt, spoken
 
@@ -223,13 +302,18 @@ class NLPParser:
     def _extract_reminder_entities(cls, raw: str, lower: str, lang: str) -> Tuple[dict, str, str]:
         # Customer in reminder
         customer_name = "Rahul Sharma"
-        name_match = re.search(r"(?:call|meet|contact|રાહુલને|राहुल को)\s+([A-Za-z]+)", raw, re.IGNORECASE)
-        if not name_match:
-            name_match = re.search(r"(?:to)\s+([A-Za-z]+)", raw, re.IGNORECASE)
-        if name_match:
-            matched = name_match.group(1).capitalize()
-            if matched.lower() not in ["call", "meet", "contact", "me", "a", "the"]:
-                customer_name = matched
+        reminder_verbs = {"call", "meet", "contact", "collect", "send", "check", "get", "take", "pay",
+                          "remind", "follow", "ask", "verify", "dispatch", "deliver", "me", "a", "the", "my"}
+        for pat in (r"(?:call|meet|contact|રાહુલને|राहुल को)\s+([A-Za-z]+)", r"(?:from|with|to)\s+([A-Za-z]+)"):
+            found = None
+            for name_match in re.finditer(pat, raw, re.IGNORECASE):
+                matched = name_match.group(1).capitalize()
+                if matched.lower() not in reminder_verbs:
+                    found = matched
+                    break
+            if found:
+                customer_name = found
+                break
 
         # Date
         today = datetime.now()
@@ -310,6 +394,110 @@ class NLPParser:
             spoken = f"Add new customer {name} with phone {phone}. Should I save?"
 
         return extracted_data, prompt, spoken
+
+    # ------------------------------------------------------------------ khata
+    @classmethod
+    def _detect_khata_intent(cls, lower: str, raw: str):
+        has_amount = cls.extract_amount(raw) is not None
+        asks_how_much = _contains_any(lower, raw, ["how much", "kitna", "kitne", "कितना", "कितने", "કેટલા", "કેટલું"])
+        is_payment = _contains_any(lower, raw, KHATA_PAYMENT_WORDS)
+        is_credit = _contains_any(lower, raw, KHATA_CREDIT_WORDS)
+
+        if _contains_any(lower, raw, KHATA_LIST_DUES_WORDS):
+            return "list_dues"
+        if not has_amount and (_contains_any(lower, raw, KHATA_BALANCE_WORDS) or (asks_how_much and (is_payment or is_credit))):
+            return "check_balance"
+        if is_payment and not asks_how_much:
+            return "record_payment"
+        if is_credit and not asks_how_much:
+            return "add_udhar"
+        return None
+
+    @staticmethod
+    def extract_amount(raw: str):
+        """First money-like number in the sentence, understanding '5k', '5 thousand', '2 lakh', '15 हजार'."""
+        for m in re.finditer(r"(\d[\d,]*(?:\.\d+)?)\s*(k\b|thousand|hazaar|hazar|हजार|हज़ार|હજાર|lakh|lac|लाख|લાખ)?", raw, re.IGNORECASE):
+            digits = m.group(1).replace(",", "")
+            if len(digits.split(".")[0]) >= 10:  # phone number, not money
+                continue
+            try:
+                value = float(digits)
+            except ValueError:
+                continue
+            unit = (m.group(2) or "").lower()
+            if unit in ("k", "thousand", "hazaar", "hazar", "हजार", "हज़ार", "હજાર"):
+                value *= 1000
+            elif unit in ("lakh", "lac", "लाख", "લાખ"):
+                value *= 100000
+            if value > 0:
+                return value
+        return None
+
+    @staticmethod
+    def extract_khata_name(raw: str):
+        patterns = [
+            r"([A-Za-z]+)['’]s\b",                                                   # Rahul's udhar
+            r"\b(?:does|did|has|is)\s+([A-Za-z]+)\s+(?:owe|pay|paid|have|has)",      # does Rahul owe
+            r"\b(?:from|to|for|of)\s+([A-Za-z]+)",                                   # received from Priya
+            r"\b([A-Za-z]+)\s+(?:has\s+paid|paid|gave|owes|returned|cleared|ne|ko|ka|ki|ke|se|jama)\b",  # Rahul paid / Rahul ko
+            r"(\S+)\s+(?:का|की|के|को|ने|से)(?:\s|$)",                                 # राहुल का
+            r"(\S+?)\s*(?:ના|ની|નો|ને|એ|પાસે)(?:\s|$)",                               # રાહુલ ના
+            r"^\s*([A-Za-z]+)\b",                                                    # Rahul 3000 jama
+        ]
+        for pat in patterns:
+            for m in re.finditer(pat, raw, re.IGNORECASE):
+                cand = m.group(1).strip(" ,.?!।")
+                if not cand or any(ch.isdigit() for ch in cand) or cand.lower() in KHATA_NAME_STOPWORDS or len(cand) < 2:
+                    continue
+                if cand in NAME_ALIASES:
+                    return NAME_ALIASES[cand]
+                if cand.isascii():
+                    return cand.capitalize()
+                return cand
+        return None
+
+    @classmethod
+    def _ask_for_name(cls, lang: str) -> str:
+        if "gu" in lang:
+            return "કયા ગ્રાહકનું ખાતું? કૃપા કરીને નામ બોલો."
+        if "hi" in lang:
+            return "किस ग्राहक का खाता? कृपया नाम बोलिए।"
+        return "Whose khata should I use? Please say the customer's name."
+
+    @classmethod
+    def _extract_khata_entry_entities(cls, raw: str, lower: str, lang: str, intent: str) -> Tuple[dict, str, str]:
+        name = cls.extract_khata_name(raw)
+        amount = cls.extract_amount(raw)
+        missing = []
+        if not name:
+            missing.append("customer_name")
+        if amount is None:
+            missing.append("amount")
+
+        data: dict[str, Any] = {
+            "customer_name": name,
+            "amount": amount,
+            "entry_type": "credit" if intent == "add_udhar" else "payment",
+            "note": raw.strip()[:140],
+        }
+        if missing:
+            data["missing"] = missing
+            if "customer_name" in missing:
+                spoken = cls._ask_for_name(lang)
+            elif "gu" in lang:
+                spoken = f"{name} માટે કેટલા રૂપિયા લખું?"
+            elif "hi" in lang:
+                spoken = f"{name} के लिए कितने रुपये लिखूँ?"
+            else:
+                spoken = f"How much should I write for {name}? Please say the amount too."
+            return data, "", spoken
+
+        # Basic prompt; BusinessService.enrich_khata() rewrites it with the live balance.
+        if intent == "add_udhar":
+            prompt = f"Add ₹{amount:,.0f} udhar to {name}'s khata. Should I save it?"
+        else:
+            prompt = f"Record ₹{amount:,.0f} payment received from {name}. Should I save it?"
+        return data, prompt, prompt
 
     @classmethod
     def _get_query_spoken(cls, intent: str, lang: str, data: dict) -> str:

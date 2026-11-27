@@ -71,6 +71,34 @@ and assistant replies: "Your order has been saved successfully!"
 
 ---
 
+## 📒 Khata / Udhar Ledger (Voice Credit Book)
+
+Most small-shop business in India runs on credit. VyaparVaani keeps the merchant's *kaccha khata* by voice:
+
+| Say (English / Hinglish / हिन्दी / ગુજરાતી) | What happens |
+|---|---|
+| "Rahul ko 5000 udhar likho" · "Add ₹5,000 to Priya's udhar" | Asks to confirm, showing the balance **before → after**, then writes a credit entry |
+| "Rahul paid 3000" · "Priya ne 2 hazar jama kiye" · "Received 2,000 from Anjali" | Records a payment and reduces the balance |
+| "How much does Rahul owe me?" · "Rahul ka kitna baaki hai?" · "राहुल का कितना बाकी है" | Speaks the live balance and last payment date |
+| "Who owes me money?" · "Kiska kitna udhar baaki hai" | Lists the highest dues, each with a 1-tap WhatsApp reminder |
+| "Add an order for Priya. 10 sarees, total 12000 rupees **on udhar**" | Saves the order **and** adds it to Priya's khata; undoing the order removes the khata entry too |
+
+* First names resolve to the existing customer ("Rahul" → "Rahul Sharma"). Unknown names are flagged **NEW** on the confirmation card before anything is saved.
+* If the amount or name is missing, the assistant asks for it instead of guessing.
+* **Khata tab**: outstanding total, customers with dues, collections this month, per-customer ledger with running balance, manual "Udhar Diya / Payment Mila" entries, and WhatsApp payment reminders/receipts.
+* API: `GET /api/khata`, `GET /api/khata/{customer_id}`, `POST /api/khata/entries`, `DELETE /api/khata/entries/{id}`.
+
+## 🙌 Hands-Free Confirmation
+
+With **Hands-free ON** (the default in Voice OS), once the assistant has read the confirmation aloud it opens the mic for a short reply:
+
+* **"Yes" / "Haan" / "Theek hai" / "Kar do"** saves it. **"No" / "Nahi" / "Cancel"** cancels. "No" wins if both are heard, so a hesitant reply never saves by accident.
+* An unclear reply gets one re-ask. A full new sentence is treated as a new command, and the pending one is cancelled.
+* Typing "yes" in the text box works the same way, which is handy for judges without a mic.
+* The backend refuses to execute the same voice action twice (HTTP 409), so a spoken "yes" and a button tap cannot double-save.
+
+---
+
 ## 🛠️ Technology Stack
 
 | Layer | Technology | Purpose |
@@ -189,13 +217,12 @@ Run backend unit and workflow integration tests:
 cd backend
 .\venv\Scripts\python -m pytest tests/ -v
 ```
-All 8 test suites pass, verifying:
-* English order extraction
-* Hindi order extraction
-* Gujarati order extraction
-* Reminder creation
-* Customer registration
+30 tests pass, verifying:
+* English, Hindi and Gujarati order extraction
+* Reminder creation and customer registration
 * Full end-to-end voice process -> confirm -> database write -> dashboard update
+* Khata intents in English / Hinglish / Hindi / Gujarati, amounts like "2 hazar" and "1.5 lakh"
+* Balance before -> after on confirmation, double-confirm protection, udhar orders linked to the khata (and reversed on undo), running balances
 
 ---
 

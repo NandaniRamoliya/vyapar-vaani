@@ -9,6 +9,7 @@ import { RemindersTab } from './components/RemindersTab';
 import { VoiceHistoryTab } from './components/VoiceHistoryTab';
 import { SettingsTab } from './components/SettingsTab';
 import { VoiceOSView } from './components/VoiceOSView';
+import { KhataTab } from './components/KhataTab';
 import { DashboardStats, Order, Customer, Reminder, VoiceInteraction, LanguageCode } from './types';
 import { api } from './services/api';
 import { Mic } from 'lucide-react';
@@ -24,6 +25,8 @@ export function App() {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [history, setHistory] = useState<VoiceInteraction[]>([]);
   const [loading, setLoading] = useState(true);
+  // Bumped on every data reload so the Khata tab re-fetches its own ledger data
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const loadAllData = useCallback(async () => {
     try {
@@ -39,6 +42,7 @@ export function App() {
       setCustomers(customersData);
       setReminders(remindersData);
       setHistory(historyData);
+      setRefreshKey((k) => k + 1);
     } catch (e) {
       console.error('Error fetching dashboard data:', e);
     } finally {
@@ -86,6 +90,7 @@ export function App() {
                   language={language}
                   onLanguageChange={setLanguage}
                   onRefreshData={loadAllData}
+                  onOpenKhata={() => setCurrentTab('khata')}
                 />
               )}
               {currentTab === 'overview' && (
@@ -109,6 +114,13 @@ export function App() {
                   customers={customers}
                   onRefresh={loadAllData}
                   onOpenVoice={() => setIsVoiceOpen(true)}
+                />
+              )}
+              {currentTab === 'khata' && (
+                <KhataTab
+                  onOpenVoice={() => setIsVoiceOpen(true)}
+                  onRefresh={loadAllData}
+                  refreshKey={refreshKey}
                 />
               )}
               {currentTab === 'reminders' && (

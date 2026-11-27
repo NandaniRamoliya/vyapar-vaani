@@ -73,6 +73,8 @@ def delete_order(order_id: str):
     if cursor.rowcount == 0:
         conn.close()
         raise HTTPException(status_code=404, detail="Order not found")
+    # An order sold on udhar also wrote a khata entry; undoing the order must undo that too
+    cursor.execute("DELETE FROM ledger_entries WHERE order_id = ? AND source = 'order'", (order_id,))
     conn.commit()
     conn.close()
 
