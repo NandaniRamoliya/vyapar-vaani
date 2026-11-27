@@ -1,5 +1,11 @@
-from fastapi import FastAPI
+import mimetypes
+import os
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from app.config import settings
 from app.database.db import init_db
@@ -49,3 +55,24 @@ def health_check():
         "mock_mode": settings.MOCK_MODE,
         "zero_key_ready": True
     }
+
+
+# ---------------------------------------------------------------------------
+# Serve the built web app (Docker / single-port mode). In development the Vite
+# dev server serves the frontend instead and this block is skipped.
+# ---------------------------------------------------------------------------
+mimetypes.add_type("application/manifest+json", ".webmanifest")
+STATIC_DIR = Path(os.getenv("STATIC_DIR", Path(__file__).resolve().parents[2] / "frontend" / "dist")).resolve()
+
+if (STATIC_DIR / "index.html").is_file():
+    if (STATIC_DIR / "assets").is_dir():
+        app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def serve_web_app(full_path: str):
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not found")
+        candidate = (STATIC_DIR / full_path).resolve()
+        if full_path and candidate.is_file() and STATIC_DIR in candidate.parents:
+            return FileResponse(candidate)
+        return FileResponse(STATIC_DIR / "index.html")  # single-page app
