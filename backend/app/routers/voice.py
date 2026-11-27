@@ -65,6 +65,13 @@ def process_voice_command(request: ProcessVoiceRequest):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     initial_status = "pending_confirmation" if parsed["confirmation_required"] else "info"
+    executed_result = None
+
+    if request.auto_execute and parsed["confirmation_required"]:
+        executed_result, spoken_response = BusinessService.execute_confirmed_action(
+            parsed["intent"], parsed["extracted_data"], request.language
+        )
+        initial_status = "executed"
 
     cursor.execute('''
         INSERT INTO voice_interactions 
@@ -95,6 +102,7 @@ def process_voice_command(request: ProcessVoiceRequest):
         "confirmation_prompt": parsed["confirmation_prompt"],
         "spoken_response": spoken_response,
         "status": initial_status,
+        "executed_result": executed_result,
     }
 
     return ApiResponse(

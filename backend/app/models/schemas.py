@@ -60,6 +60,7 @@ class VoiceInteraction(BaseModel):
 class ProcessVoiceRequest(BaseModel):
     transcript: str = Field(..., description="Speech-to-text transcript from user")
     language: str = Field(default="en-IN", description="Language code: en-IN, hi-IN, gu-IN")
+    auto_execute: bool = Field(default=False, description="Execute action immediately without extra confirmation step")
 
 class ConfirmActionRequest(BaseModel):
     interaction_id: str

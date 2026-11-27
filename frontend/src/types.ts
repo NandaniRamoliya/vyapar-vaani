@@ -78,4 +78,5 @@ export interface VoiceProcessResult {
   confirmation_prompt: string;
   spoken_response: string;
   status: string;
+  executed_result?: any;
 }

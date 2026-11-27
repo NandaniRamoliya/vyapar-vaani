@@ -8,35 +8,30 @@ import {
   Sparkles, 
   CheckCircle2, 
   AlertCircle, 
-  RotateCcw,
-  ArrowRight,
-  Package,
-  User,
-  IndianRupee,
-  Layers,
+  MessageCircle,
   Send
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { LanguageCode, VoiceProcessResult } from '../types';
 import { useVoice } from '../hooks/useVoice';
 import { api } from '../services/api';
+import { playSoundboxChime } from '../utils/soundboxChime';
 
 interface VoiceAssistantModalProps {
   isOpen: boolean;
   onClose: () => void;
-  language: LanguageCode;
+  language?: LanguageCode;
   onActionCompleted: () => void;
 }
 
 export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
   isOpen,
   onClose,
-  language,
   onActionCompleted,
 }) => {
-  const [stage, setStage] = useState<'idle' | 'listening' | 'processing' | 'confirming' | 'executed' | 'error'>('idle');
+  const [stage, setStage] = useState<'idle' | 'listening' | 'processing' | 'executed' | 'error'>('idle');
   const [manualInput, setManualInput] = useState('');
-  const [pendingResult, setPendingResult] = useState<VoiceProcessResult | null>(null);
+  const [executedResult, setExecutedResult] = useState<VoiceProcessResult | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [ttsEnabled, setTtsEnabled] = useState(true);
   const isProcessingRef = useRef(false);
@@ -49,23 +44,31 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
 
     setStage('processing');
     try {
-      const result = await api.processVoice(cleanText, language);
-      setPendingResult(result);
+      // 1-Step Instant Execution with auto_execute = true!
+      const result = await api.processVoice(cleanText, 'en-IN', true);
+      setExecutedResult(result);
+      setStage('executed');
+      setSuccessMessage(result.spoken_response);
 
-      if (result.confirmation_required) {
-        setStage('confirming');
-        if (ttsEnabled && result.confirmation_prompt) {
-          speak(result.confirmation_prompt, language);
-        }
-      } else {
-        // Direct query intent (e.g. show summary)
-        setStage('executed');
-        setSuccessMessage(result.spoken_response);
-        if (ttsEnabled && result.spoken_response) {
-          speak(result.spoken_response, language);
-        }
-        onActionCompleted();
+      // Authentic Soundbox Chime 🔔
+      playSoundboxChime();
+
+      // Confetti celebration if order placed!
+      if (result.intent === 'create_order') {
+        confetti({
+          particleCount: 80,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
       }
+
+      // Natural Voice Confirmation
+      if (ttsEnabled && result.spoken_response) {
+        speak(result.spoken_response, 'en-IN');
+      }
+
+      // Refresh background data
+      onActionCompleted();
     } catch (err: any) {
       console.error(err);
       setStage('error');
@@ -77,7 +80,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
   const handleFinalSpeech = useCallback((spokenText: string) => {
     if (!spokenText.trim()) return;
     processTranscript(spokenText);
-  }, [language, ttsEnabled]);
+  }, [ttsEnabled]);
 
   const {
     isListening,
@@ -92,7 +95,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
     stopSpeaking,
     setTranscript,
   } = useVoice({
-    language,
+    language: 'en-IN',
     onFinalTranscript: handleFinalSpeech,
   });
 
@@ -100,10 +103,15 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
     if (isOpen) {
       isProcessingRef.current = false;
       setStage('idle');
-      setPendingResult(null);
+      setExecutedResult(null);
       setManualInput('');
       setSuccessMessage('');
       setTranscript('');
+      // Auto-start listening on open for frictionless voice interaction
+      const timer = setTimeout(() => {
+        startListening();
+      }, 300);
+      return () => clearTimeout(timer);
     } else {
       isProcessingRef.current = false;
       stopListening();
@@ -113,45 +121,12 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
 
   // Keep stage in sync with listening
   useEffect(() => {
-    if (isListening) {
+    if (isListening && stage !== 'processing' && stage !== 'executed') {
       setStage('listening');
     }
-  }, [isListening]);
+  }, [isListening, stage]);
 
   if (!isOpen) return null;
-
-  const handleConfirmAction = async (confirmed: boolean) => {
-    if (!pendingResult) return;
-    stopSpeaking();
-    setStage('processing');
-
-    try {
-      const response = await api.confirmVoiceAction(pendingResult.interaction_id, confirmed);
-      if (confirmed) {
-        setStage('executed');
-        setSuccessMessage(response.spoken_response);
-        if (ttsEnabled) {
-          speak(response.spoken_response, language);
-        }
-        // Confetti celebration for order placement!
-        confetti({
-          particleCount: 80,
-          spread: 70,
-          origin: { y: 0.6 }
-        });
-        onActionCompleted();
-      } else {
-        setStage('idle');
-        setPendingResult(null);
-        if (ttsEnabled) {
-          speak(response.spoken_response, language);
-        }
-      }
-    } catch (err: any) {
-      console.error(err);
-      setStage('error');
-    }
-  };
 
   const handlePresetClick = (presetText: string) => {
     setTranscript(presetText);
@@ -159,26 +134,29 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
     processTranscript(presetText);
   };
 
-  const getPresets = () => {
-    if (language === 'gu-IN') {
-      return [
-        { label: 'રાહુલ માટે ઓર્ડર', text: 'રાહુલ માટે 20 શર્ટ નો ઓર્ડર ઉમેરો, કુલ 15000 રૂપિયા' },
-        { label: 'કાલે કોલનું રિમાઇન્ડર', text: 'કાલે સવારે 11 વાગ્યે રાહુલને કોલ કરવાનું યાદ અપાવજો' },
-        { label: 'બાકી ઓર્ડર્સ બતાવો', text: 'આજના બાકી ઓર્ડર બતાવો' },
-      ];
-    }
-    if (language === 'hi-IN') {
-      return [
-        { label: 'राहुल के लिए ऑर्डर', text: 'राहुल के लिए 20 शर्ट्स का ऑर्डर जोड़ो कुल 15000 रुपये' },
-        { label: 'कल 11 बजे रिमाइंडर', text: 'कल 11 बजे राहुल को कॉल करने का रिमाइंडर डालो' },
-        { label: 'पेंडिंग ऑर्डर्स दिखाओ', text: 'आज के पेंडिंग ऑर्डर्स दिखाओ' },
-      ];
-    }
-    return [
-      { label: 'Add Order for Rahul', text: 'Add an order for Rahul. 20 shirts, total 15000 rupees.' },
-      { label: 'Reminder to Call', text: 'Remind me to call Rahul tomorrow at 11 AM' },
-      { label: 'Show Pending Orders', text: 'Show today\'s pending inquiries.' },
-    ];
+  const presets = [
+    { label: 'Add Order for Rahul', text: 'Add an order for Rahul. 20 shirts, total 15000 rupees.' },
+    { label: 'Show Pending Orders', text: 'Show today\'s pending inquiries.' },
+    { label: 'Sales Summary', text: 'How much did I sell today?' },
+  ];
+
+  const orderInfo = executedResult?.executed_result || executedResult?.extracted_data;
+
+  const openWhatsAppBill = () => {
+    if (!orderInfo) return;
+    const phone = orderInfo.customer_phone ? orderInfo.customer_phone.replace(/\D/g, '') : '919876543210';
+    const text = encodeURIComponent(
+      `*VYAPAR VAANI INVOICE SLIP*\n` +
+      `━━━━━━━━━━━━━━━━━━━\n` +
+      `Customer: ${orderInfo.customer_name || 'Valued Customer'}\n` +
+      `Item: ${orderInfo.product_name || 'Goods'}\n` +
+      `Quantity: ${orderInfo.quantity || 1} units\n` +
+      `Total: Rs. ${Number(orderInfo.total_amount || 0).toLocaleString('en-IN')}\n` +
+      `Status: Confirmed & Logged\n` +
+      `━━━━━━━━━━━━━━━━━━━\n` +
+      `Thank you for doing business with us!`
+    );
+    window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
   };
 
   return (
@@ -193,238 +171,180 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900">VyaparVaani Voice Assistant</h3>
-              <p className="text-xs text-slate-500">Multilingual Bharat AI Engine</p>
+              <p className="text-xs text-slate-500">1-Step Instant Soundbox Engine (English India)</p>
             </div>
           </div>
           <div className="flex items-center space-x-2">
             <button
-              onClick={() => setTtsEnabled(!ttsEnabled)}
-              title={ttsEnabled ? 'Mute spoken audio' : 'Unmute spoken audio'}
-              className="p-2 rounded-xl text-slate-500 hover:bg-slate-200/60 transition-colors cursor-pointer"
+              onClick={() => {
+                if (isSpeaking) stopSpeaking();
+                setTtsEnabled(!ttsEnabled);
+              }}
+              className={`p-2 rounded-xl border text-xs font-medium transition-colors ${
+                ttsEnabled 
+                  ? 'border-indigo-200 text-indigo-700 bg-indigo-50' 
+                  : 'border-slate-200 text-slate-400 hover:bg-slate-50'
+              }`}
+              title={ttsEnabled ? 'Mute Speech' : 'Enable Speech'}
             >
-              {ttsEnabled ? <Volume2 className="w-4 h-4 text-indigo-600" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
+              {ttsEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
             </button>
             <button
               onClick={onClose}
               className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* Dynamic Voice Center Content */}
-        <div className="p-6 flex flex-col items-center justify-center min-h-[300px]">
+        {/* Modal Body */}
+        <div className="p-6 flex-1 flex flex-col justify-center items-center min-h-[320px]">
           
-          {/* Stage 1: IDLE / READY */}
+          {/* Stage 1: IDLE */}
           {stage === 'idle' && (
-            <div className="w-full flex flex-col items-center text-center">
-              {voiceError && (
-                <div className="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center space-x-2 max-w-sm text-left">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
-                  <span>{voiceError}</span>
-                </div>
-              )}
-
-              <div className="relative mb-6">
-                <button
-                  onClick={startListening}
-                  className="w-24 h-24 rounded-full bg-gradient-to-tr from-indigo-600 to-blue-500 text-white flex items-center justify-center shadow-xl shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-all cursor-pointer group"
-                >
-                  <Mic className="w-10 h-10 group-hover:scale-110 transition-transform" />
-                </button>
-              </div>
-
-              <h4 className="text-lg font-bold text-slate-900">Tap microphone to speak</h4>
-              <p className="text-xs text-slate-500 max-w-sm mt-1">
-                Say your order, customer notes or reminders in English, Hindi, or Gujarati.
+            <div className="flex flex-col items-center text-center">
+              <button
+                onClick={startListening}
+                className="w-20 h-20 rounded-full bg-gradient-to-tr from-indigo-600 to-blue-500 text-white flex items-center justify-center shadow-xl shadow-indigo-600/30 hover:scale-105 active:scale-95 transition-all cursor-pointer group mb-4"
+              >
+                <Mic className="w-8 h-8 group-hover:scale-110 transition-transform" />
+              </button>
+              <h4 className="text-base font-bold text-slate-900">Tap to Speak Your Order</h4>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm">
+                Speak naturally in one go: "Add an order for Rahul. 20 shirts, total 15000 rupees."
               </p>
 
-              {/* Sample Voice Presets */}
-              <div className="w-full mt-6 pt-5 border-t border-slate-100">
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2.5">
-                  Or click a quick test preset:
-                </p>
-                <div className="flex flex-col gap-2">
-                  {getPresets().map((preset, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => handlePresetClick(preset.text)}
-                      className="text-left text-xs bg-slate-50 hover:bg-indigo-50/70 border border-slate-200 hover:border-indigo-200 p-2.5 rounded-xl transition-all cursor-pointer group flex items-center justify-between"
-                    >
-                      <span className="font-medium text-slate-700 group-hover:text-indigo-700">"{preset.text}"</span>
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 shrink-0 ml-2" />
-                    </button>
-                  ))}
-                </div>
+              {/* Quick Presets */}
+              <div className="mt-6 flex flex-wrap justify-center gap-2 max-w-md">
+                {presets.map((preset, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handlePresetClick(preset.text)}
+                    className="text-xs px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 border border-slate-200 transition-colors cursor-pointer"
+                  >
+                    "{preset.label}"
+                  </button>
+                ))}
               </div>
             </div>
           )}
 
           {/* Stage 2: LISTENING */}
           {stage === 'listening' && (
-            <div className="flex flex-col items-center text-center py-4">
-              {voiceError && (
-                <div className="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center space-x-2 max-w-sm text-left">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
-                  <span>{voiceError}</span>
-                </div>
-              )}
-
+            <div className="flex flex-col items-center text-center w-full max-w-md">
               <div className="relative mb-6">
-                <div className="absolute inset-0 rounded-full bg-indigo-500/20 animate-pulse-ring scale-150" />
+                <div className="w-24 h-24 rounded-full bg-indigo-500/10 flex items-center justify-center animate-ping absolute inset-0" />
                 <button
                   onClick={stopListening}
-                  className="relative z-10 w-24 h-24 rounded-full bg-red-500 text-white flex items-center justify-center shadow-xl shadow-red-500/30 animate-pulse cursor-pointer"
+                  className="relative w-24 h-24 rounded-full bg-gradient-to-tr from-indigo-600 via-indigo-500 to-blue-600 text-white flex items-center justify-center shadow-xl shadow-indigo-500/40 hover:scale-105 active:scale-95 transition-all cursor-pointer"
                 >
-                  <MicOff className="w-10 h-10" />
+                  <Mic className="w-10 h-10 animate-bounce" />
                 </button>
               </div>
 
-              <div className="flex items-center space-x-1.5 mb-3">
-                <div className="w-1.5 h-4 bg-indigo-500 rounded-full soundwave-bar" style={{ animationDelay: '0.1s' }} />
-                <div className="w-1.5 h-7 bg-indigo-600 rounded-full soundwave-bar" style={{ animationDelay: '0.3s' }} />
-                <div className="w-1.5 h-5 bg-indigo-400 rounded-full soundwave-bar" style={{ animationDelay: '0.5s' }} />
-                <div className="w-1.5 h-8 bg-indigo-700 rounded-full soundwave-bar" style={{ animationDelay: '0.2s' }} />
-                <div className="w-1.5 h-4 bg-indigo-500 rounded-full soundwave-bar" style={{ animationDelay: '0.4s' }} />
+              {/* Live Audio Visualizer Bars */}
+              <div className="flex items-center justify-center space-x-1.5 my-3">
+                <span className="w-1.5 h-6 bg-indigo-500 rounded-full animate-pulse" />
+                <span className="w-1.5 h-10 bg-indigo-600 rounded-full animate-pulse [animation-delay:150ms]" />
+                <span className="w-1.5 h-8 bg-blue-500 rounded-full animate-pulse [animation-delay:300ms]" />
+                <span className="w-1.5 h-12 bg-indigo-500 rounded-full animate-pulse [animation-delay:75ms]" />
+                <span className="w-1.5 h-5 bg-blue-400 rounded-full animate-pulse [animation-delay:200ms]" />
               </div>
 
-              <h4 className="text-lg font-bold text-slate-900">Listening to your voice...</h4>
-              <p className="text-sm text-indigo-600 font-medium min-h-[40px] px-4 mt-2">
-                {interimTranscript || transcript || 'Speak now...'}
+              <h4 className="text-base font-bold text-slate-900 mt-2">Listening to your order...</h4>
+              <p className="text-xs text-indigo-600 font-medium mt-1">
+                Speak now. Stops automatically when you pause.
               </p>
+
+              {/* Real-time Transcript Bubble */}
+              <div className="mt-4 p-4 rounded-2xl bg-slate-50 border border-slate-200 w-full min-h-[64px] flex items-center justify-center">
+                <p className="text-sm font-medium text-slate-800 italic">
+                  {transcript || interimTranscript || '“Listening... say customer name, quantity, and amount”'}
+                </p>
+              </div>
 
               <button
                 onClick={stopListening}
-                className="mt-4 px-4 py-1.5 rounded-full bg-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-300 transition-colors cursor-pointer"
+                className="mt-4 text-xs font-semibold text-slate-500 hover:text-slate-800 flex items-center space-x-1 cursor-pointer"
               >
-                Done Speaking
+                <MicOff className="w-3.5 h-3.5" />
+                <span>Click if finished speaking</span>
               </button>
             </div>
           )}
 
           {/* Stage 3: PROCESSING */}
           {stage === 'processing' && (
-            <div className="flex flex-col items-center text-center py-8">
-              <div className="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center mb-4">
+            <div className="flex flex-col items-center text-center py-6">
+              <div className="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center mb-4">
                 <Sparkles className="w-8 h-8 text-indigo-600 animate-spin" />
               </div>
-              <h4 className="text-lg font-bold text-slate-900">Understanding your command...</h4>
-              <p className="text-xs text-slate-500 mt-1">Extracting intent, customer, quantity and amount</p>
+              <h4 className="text-base font-bold text-slate-900">Saving Order & Generating Bill...</h4>
+              <p className="text-xs text-slate-500 mt-1 max-w-xs">
+                Extracting customer, items, and amount with zero-key offline NLP engine...
+              </p>
             </div>
           )}
 
-          {/* Stage 4: CONFIRMING (The Crucial Workflow Step!) */}
-          {stage === 'confirming' && pendingResult && (
-            <div className="w-full flex flex-col animate-in fade-in">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-2">
-                  <span className="px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold uppercase tracking-wider">
-                    {pendingResult.intent.replace('_', ' ')}
-                  </span>
-                  <span className="text-xs text-slate-400">Action Review</span>
-                </div>
-                {isSpeaking && (
-                  <span className="flex items-center text-xs text-indigo-600 font-medium animate-pulse">
-                    <Volume2 className="w-3.5 h-3.5 mr-1" /> Speaking...
-                  </span>
-                )}
-              </div>
-
-              {/* Extracted Details Card */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-4">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Extracted Details</p>
-                
-                {pendingResult.intent === 'create_order' && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-white p-3 rounded-xl border border-slate-200">
-                      <div className="flex items-center space-x-1.5 text-slate-500 text-xs mb-1">
-                        <User className="w-3.5 h-3.5" />
-                        <span>Customer</span>
-                      </div>
-                      <p className="text-sm font-bold text-slate-900">{pendingResult.extracted_data.customer_name || 'N/A'}</p>
-                    </div>
-
-                    <div className="bg-white p-3 rounded-xl border border-slate-200">
-                      <div className="flex items-center space-x-1.5 text-slate-500 text-xs mb-1">
-                        <Package className="w-3.5 h-3.5" />
-                        <span>Product</span>
-                      </div>
-                      <p className="text-sm font-bold text-slate-900">{pendingResult.extracted_data.product_name || 'N/A'}</p>
-                    </div>
-
-                    <div className="bg-white p-3 rounded-xl border border-slate-200">
-                      <div className="flex items-center space-x-1.5 text-slate-500 text-xs mb-1">
-                        <Layers className="w-3.5 h-3.5" />
-                        <span>Quantity</span>
-                      </div>
-                      <p className="text-sm font-bold text-slate-900">{pendingResult.extracted_data.quantity || 0} Units</p>
-                    </div>
-
-                    <div className="bg-white p-3 rounded-xl border border-slate-200">
-                      <div className="flex items-center space-x-1.5 text-slate-500 text-xs mb-1">
-                        <IndianRupee className="w-3.5 h-3.5" />
-                        <span>Total Amount</span>
-                      </div>
-                      <p className="text-sm font-bold text-emerald-700">₹{Number(pendingResult.extracted_data.total_amount || 0).toLocaleString('en-IN')}</p>
-                    </div>
-                  </div>
-                )}
-
-                {pendingResult.intent === 'create_reminder' && (
-                  <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1">
-                    <p className="text-xs text-slate-500">Reminder Task</p>
-                    <p className="text-sm font-bold text-slate-900">{pendingResult.extracted_data.title}</p>
-                    <p className="text-xs text-indigo-600">
-                      Scheduled: {pendingResult.extracted_data.reminder_date} at {pendingResult.extracted_data.reminder_time}
-                    </p>
-                  </div>
-                )}
-
-                {/* Spoken Prompt Question */}
-                <div className="mt-3 p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl">
-                  <p className="text-xs font-semibold text-indigo-950">
-                    "{pendingResult.confirmation_prompt}"
-                  </p>
-                </div>
-              </div>
-
-              {/* Confirmation Controls */}
-              <div className="flex items-center space-x-3">
-                <button
-                  onClick={() => handleConfirmAction(false)}
-                  className="flex-1 py-3 px-4 rounded-xl border border-slate-200 text-slate-700 font-semibold text-sm hover:bg-slate-100 transition-colors cursor-pointer"
-                >
-                  Cancel / Edit
-                </button>
-                <button
-                  onClick={() => handleConfirmAction(true)}
-                  className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-md shadow-emerald-600/20 transition-all cursor-pointer flex items-center justify-center space-x-2"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Yes, Save Order</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Stage 5: EXECUTED / SUCCESS */}
+          {/* Stage 4: EXECUTED (Instant 1-Step Success & Digital Bill) */}
           {stage === 'executed' && (
-            <div className="flex flex-col items-center text-center py-4 animate-in fade-in">
-              <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-4">
-                <CheckCircle2 className="w-10 h-10" />
+            <div className="flex flex-col items-center text-center w-full animate-in fade-in">
+              <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3">
+                <CheckCircle2 className="w-8 h-8" />
               </div>
-              <h4 className="text-lg font-bold text-slate-900">Task Completed Successfully!</h4>
-              <p className="text-sm text-slate-600 mt-2 max-w-sm px-4">
-                {successMessage || 'Your order has been recorded in the database.'}
+              <h4 className="text-base font-bold text-slate-900">Order Confirmed & Saved!</h4>
+              <p className="text-xs text-slate-600 mt-1 max-w-sm px-4">
+                {successMessage || 'Your transaction has been recorded in the database.'}
               </p>
 
-              <div className="flex items-center space-x-3 mt-6">
+              {/* Instant Digital Bill Slip if Order Placed */}
+              {orderInfo && executedResult?.intent === 'create_order' && (
+                <div className="mt-4 w-full max-w-sm bg-slate-50 rounded-2xl border border-slate-200 p-4 text-left shadow-xs">
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Digital Bill Slip</span>
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">Saved</span>
+                  </div>
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Customer:</span>
+                      <span className="font-semibold text-slate-800">{orderInfo.customer_name || 'Customer'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Product:</span>
+                      <span className="font-semibold text-slate-800">{orderInfo.product_name || 'Goods'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Quantity:</span>
+                      <span className="font-semibold text-slate-800">{orderInfo.quantity || 1} pcs</span>
+                    </div>
+                    <div className="flex justify-between pt-1 border-t border-slate-200 text-sm font-bold">
+                      <span className="text-slate-800">Total:</span>
+                      <span className="text-indigo-600">₹{Number(orderInfo.total_amount || 0).toLocaleString('en-IN')}</span>
+                    </div>
+                  </div>
+
+                  {/* Send on WhatsApp Button */}
+                  <button
+                    onClick={openWhatsAppBill}
+                    className="mt-3 w-full flex items-center justify-center space-x-2 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    <span>Send Bill on WhatsApp</span>
+                  </button>
+                </div>
+              )}
+
+              <div className="flex items-center space-x-3 mt-5">
                 <button
-                  onClick={() => setStage('idle')}
+                  onClick={() => {
+                    setStage('idle');
+                    setExecutedResult(null);
+                    setTranscript('');
+                  }}
                   className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-colors cursor-pointer"
                 >
-                  Another Command
+                  Another Order
                 </button>
                 <button
                   onClick={onClose}
@@ -436,15 +356,15 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
             </div>
           )}
 
-          {/* Stage 6: ERROR */}
+          {/* Stage 5: ERROR */}
           {stage === 'error' && (
             <div className="flex flex-col items-center text-center py-4">
               <div className="w-16 h-16 rounded-full bg-red-100 text-red-600 flex items-center justify-center mb-4">
                 <AlertCircle className="w-10 h-10" />
               </div>
-              <h4 className="text-lg font-bold text-slate-900">Could not complete voice task</h4>
+              <h4 className="text-base font-bold text-slate-900">Could not complete voice task</h4>
               <p className="text-xs text-slate-500 mt-1 max-w-sm">
-                Please check your microphone permissions or try clicking one of the preset prompts.
+                Please check your microphone permissions or click one of the preset chips below.
               </p>
               <button
                 onClick={() => setStage('idle')}
@@ -464,7 +384,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
             value={manualInput}
             onChange={(e) => setManualInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && manualInput.trim() && processTranscript(manualInput)}
-            placeholder="Or type voice command here: e.g. Add an order for Rahul..."
+            placeholder="Or type voice command: e.g. Add an order for Rahul. 20 shirts, total 15000..."
             className="flex-1 bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800"
           />
           <button

@@ -13,21 +13,21 @@ import {
   Package, 
   User, 
   Clock, 
-  Receipt, 
   Send,
-  Printer,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  RotateCcw,
+  Zap
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { LanguageCode, VoiceProcessResult, Order } from '../types';
+import { Order, LanguageCode } from '../types';
 import { useVoice } from '../hooks/useVoice';
 import { api } from '../services/api';
 import { playSoundboxChime } from '../utils/soundboxChime';
 
 interface VoiceOSViewProps {
-  language: LanguageCode;
-  onLanguageChange: (lang: LanguageCode) => void;
+  language?: LanguageCode;
+  onLanguageChange?: (lang: LanguageCode) => void;
   onRefreshData?: () => void;
 }
 
@@ -41,25 +41,17 @@ interface MessageItem {
   timestamp: string;
 }
 
-export const VoiceOSView: React.FC<VoiceOSViewProps> = ({
-  language,
-  onLanguageChange,
-  onRefreshData,
-}) => {
+export const VoiceOSView: React.FC<VoiceOSViewProps> = ({ onRefreshData }) => {
   const [messages, setMessages] = useState<MessageItem[]>([
     {
       id: 'welcome_1',
       sender: 'assistant',
-      text: 
-        language === 'gu-IN' ? 'નમસ્તે! હું વ્યાપારવાણી વોઇસ આસિસ્ટન્ટ છું. બોલીને ઓર્ડર નોંધાવો અથવા આજના વેપાર વિશે પૂછો.' :
-        language === 'hi-IN' ? 'नमस्ते! मैं व्यापारवाणी वॉइस असिस्टेंट हूँ। बोलकर ऑर्डर दर्ज करें या आज के व्यापार के बारे में पूछें।' :
-        'Namaste! I am your VyaparVaani voice assistant. Speak naturally to record orders, follow-ups, or check sales.',
+      text: 'Namaste! I am your VyaparVaani voice assistant. Tap the mic and speak your order in one go (e.g. "Add an order for Rahul. 20 shirts, total 15000 rupees") or ask "How much did I sell today?".',
       timestamp: 'Just now',
     }
   ]);
 
-  const [stage, setStage] = useState<'idle' | 'listening' | 'processing' | 'confirming'>('idle');
-  const [pendingAction, setPendingAction] = useState<VoiceProcessResult | null>(null);
+  const [stage, setStage] = useState<'idle' | 'listening' | 'processing'>('idle');
   const [ttsEnabled, setTtsEnabled] = useState(true);
   const [manualText, setManualText] = useState('');
   const isProcessingRef = useRef(false);
@@ -67,7 +59,7 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({
   const handleFinalSpeech = useCallback((spokenText: string) => {
     if (!spokenText.trim()) return;
     executeVoiceCommand(spokenText);
-  }, [language, ttsEnabled]);
+  }, [ttsEnabled]);
 
   const {
     isListening,
@@ -80,7 +72,7 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({
     speak,
     stopSpeaking,
   } = useVoice({
-    language,
+    language: 'en-IN', // 100% locked to reliable English (India)
     onFinalTranscript: handleFinalSpeech,
   });
 
@@ -92,13 +84,15 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({
     }
   }, [isListening]);
 
+  // 1-Step Instant Execution: Process, Save to DB, Chime, and Speak in ONE GO!
   const executeVoiceCommand = async (rawText: string) => {
     const clean = rawText ? rawText.trim() : '';
     if (!clean || isProcessingRef.current) return;
     isProcessingRef.current = true;
 
-    // Add user message to feed
     const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
+    // Add user's spoken sentence
     setMessages((prev) => [
       ...prev,
       { id: `u_${Date.now()}`, sender: 'user', text: clean, timestamp: nowTime },
@@ -107,68 +101,14 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({
     setStage('processing');
 
     try {
-      const result = await api.processVoice(clean, language);
-      setPendingAction(result);
-
-      if (result.confirmation_required) {
-        setStage('confirming');
-        if (ttsEnabled && result.confirmation_prompt) {
-          speak(result.confirmation_prompt, language);
-        }
-      } else {
-        setStage('idle');
-        // Handle Direct Queries (e.g. Sales summary, pending orders)
-        if (ttsEnabled && result.spoken_response) {
-          speak(result.spoken_response, language);
-        }
-        playSoundboxChime();
-
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `a_${Date.now()}`,
-            sender: 'assistant',
-            text: result.spoken_response,
-            type: result.intent === 'show_business_summary' ? 'stats_summary' : 'general',
-            statsData: result.extracted_data.stats,
-            timestamp: nowTime,
-          },
-        ]);
-
-        if (onRefreshData) onRefreshData();
-      }
-    } catch (err: any) {
-      console.error(err);
-      setStage('idle');
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `a_${Date.now()}`,
-          sender: 'assistant',
-          text: 'Sorry, I had trouble processing that. Please try again or tap one of the chips below.',
-          timestamp: nowTime,
-        },
-      ]);
-    } finally {
-      isProcessingRef.current = false;
-    }
-  };
-
-  const handleConfirmOrder = async (confirmed: boolean) => {
-    if (!pendingAction) return;
-    stopSpeaking();
-    setStage('processing');
-
-    const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    try {
-      const response = await api.confirmVoiceAction(pendingAction.interaction_id, confirmed);
+      // autoExecute = true commits directly to SQLite in this single step!
+      const result = await api.processVoice(clean, 'en-IN', true);
       setStage('idle');
 
-      if (confirmed) {
-        // Authentic Soundbox Chime 🔔
-        playSoundboxChime();
+      // Authentic Soundbox Chime 🔔
+      playSoundboxChime();
 
+      if (result.intent === 'create_order') {
         // Confetti celebration!
         confetti({
           particleCount: 80,
@@ -176,19 +116,19 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({
           origin: { y: 0.6 },
         });
 
-        if (ttsEnabled) {
-          speak(response.spoken_response, language);
-        }
+        const orderInfo = result.executed_result || result.extracted_data;
 
-        const orderInfo = response.executed_result || pendingAction.extracted_data;
+        if (ttsEnabled && result.spoken_response) {
+          speak(result.spoken_response, 'en-IN');
+        }
 
         setMessages((prev) => [
           ...prev,
           {
             id: `a_${Date.now()}`,
             sender: 'assistant',
-            text: response.spoken_response,
-            type: pendingAction.intent === 'create_order' ? 'order_receipt' : 'general',
+            text: result.spoken_response,
+            type: 'order_receipt',
             orderData: {
               customer_name: orderInfo.customer_name,
               product_name: orderInfo.product_name,
@@ -201,26 +141,40 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({
             timestamp: nowTime,
           },
         ]);
-
-        if (onRefreshData) onRefreshData();
       } else {
-        if (ttsEnabled) {
-          speak(response.spoken_response, language);
+        // Direct Query or Reminder or Customer
+        if (ttsEnabled && result.spoken_response) {
+          speak(result.spoken_response, 'en-IN');
         }
+
         setMessages((prev) => [
           ...prev,
           {
             id: `a_${Date.now()}`,
             sender: 'assistant',
-            text: response.spoken_response,
+            text: result.spoken_response,
+            type: result.intent === 'show_business_summary' ? 'stats_summary' : 'general',
+            statsData: result.extracted_data.stats,
             timestamp: nowTime,
           },
         ]);
       }
-      setPendingAction(null);
-    } catch (err) {
+
+      if (onRefreshData) onRefreshData();
+    } catch (err: any) {
       console.error(err);
       setStage('idle');
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `a_${Date.now()}`,
+          sender: 'assistant',
+          text: 'Sorry, I did not catch that clearly. Please try again or tap one of the quick chips below.',
+          timestamp: nowTime,
+        },
+      ]);
+    } finally {
+      isProcessingRef.current = false;
     }
   };
 
@@ -231,30 +185,22 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
 
-  const getPresetChips = () => {
-    if (language === 'gu-IN') {
-      return [
-        { label: '👕 રાહુલ માટે ઓર્ડર', text: 'રાહુલ માટે 20 શર્ટ નો ઓર્ડર ઉમેરો, કુલ 15000 રૂપિયા' },
-        { label: '💰 આજનો વેપાર કેટલો?', text: 'આજનો વેપાર કેટલો થયો?' },
-        { label: '📦 બાકી ઓર્ડર બતાવો', text: 'આજના બાકી ઓર્ડર બતાવો' },
-        { label: '⏰ કાલે કોલનું રિમાઇન્ડર', text: 'કાલે સવારે 11 વાગ્યે રાહુલને કોલ કરવાનું યાદ અપાવજો' },
-      ];
-    }
-    if (language === 'hi-IN') {
-      return [
-        { label: '👕 राहुल के लिए ऑर्डर', text: 'राहुल के लिए 20 शर्ट्स का ऑर्डर जोड़ो कुल 15000 रुपये' },
-        { label: '💰 आज का व्यापार कितना?', text: 'आज का व्यापार कितना हुआ?' },
-        { label: '📦 पेंडिंग ऑर्डर्स दिखाओ', text: 'आज के पेंडिंग ऑर्डर्स दिखाओ' },
-        { label: '⏰ कल 11 बजे रिमाइंडर', text: 'कल 11 बजे राहुल को कॉल करने का रिमाइंडर डालो' },
-      ];
-    }
-    return [
-      { label: '👕 Order for Rahul', text: 'Add an order for Rahul. 20 shirts, total 15000 rupees.' },
-      { label: '💰 Today\'s Total Sales', text: 'How much did I sell today?' },
-      { label: '📦 Show Pending Orders', text: 'Show today\'s pending orders.' },
-      { label: '⏰ Call Reminder', text: 'Remind me to call Rahul tomorrow at 11 AM' },
-    ];
+  const handleUndoOrder = async (orderId?: string) => {
+    if (!orderId) return;
+    try {
+      await api.deleteOrder(orderId);
+      if (onRefreshData) onRefreshData();
+      alert('Order cancelled and removed.');
+    } catch (_) {}
   };
+
+  const presetChips = [
+    { label: '👕 Add order for Rahul (₹15,000)', text: 'Add an order for Rahul. 20 shirts, total 15000 rupees.' },
+    { label: '👗 Add order for Priya (₹12,000)', text: 'Add an order for Priya. 10 sarees, total 12000 rupees.' },
+    { label: '💰 How much did I sell today?', text: 'How much did I sell today?' },
+    { label: '📦 Show pending orders', text: 'Show today\'s pending orders.' },
+    { label: '⏰ Remind me to call Rahul', text: 'Remind me to call Rahul tomorrow at 11 AM' },
+  ];
 
   return (
     <div className="flex flex-col h-full max-w-4xl mx-auto space-y-4">
@@ -268,56 +214,39 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({
           <div>
             <div className="flex items-center space-x-2">
               <h2 className="font-bold text-slate-900 text-sm tracking-tight">Nandani Textiles</h2>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                ● Soundbox Active
+              <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <Zap className="w-3 h-3 text-emerald-600" />
+                <span>Instant 1-Step Voice</span>
               </span>
             </div>
-            <p className="text-xs text-slate-500">Surat Wholesale Market • Bharat Voice OS</p>
+            <p className="text-xs text-slate-500">Surat Wholesale Market • English Voice OS</p>
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-3">
           {/* Mute/Unmute Soundbox Voice */}
           <button
             onClick={() => setTtsEnabled(!ttsEnabled)}
             title={ttsEnabled ? 'Mute Soundbox Voice' : 'Unmute Soundbox Voice'}
-            className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors text-xs font-semibold cursor-pointer"
           >
-            {ttsEnabled ? <Volume2 className="w-4 h-4 text-indigo-600" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
+            {ttsEnabled ? (
+              <>
+                <Volume2 className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Voice Sound ON</span>
+              </>
+            ) : (
+              <>
+                <VolumeX className="w-3.5 h-3.5 text-slate-400" />
+                <span>Muted</span>
+              </>
+            )}
           </button>
-
-          {/* Regional Dialect Selector */}
-          <div className="flex items-center rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs">
-            <button
-              onClick={() => onLanguageChange('en-IN')}
-              className={`px-3 py-1 font-semibold rounded-lg transition-colors cursor-pointer ${
-                language === 'en-IN' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              English
-            </button>
-            <button
-              onClick={() => onLanguageChange('hi-IN')}
-              className={`px-3 py-1 font-semibold rounded-lg transition-colors cursor-pointer ${
-                language === 'hi-IN' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              हिन्दी
-            </button>
-            <button
-              onClick={() => onLanguageChange('gu-IN')}
-              className={`px-3 py-1 font-semibold rounded-lg transition-colors cursor-pointer ${
-                language === 'gu-IN' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              ગુજરાતી
-            </button>
-          </div>
         </div>
       </div>
 
       {/* Hero Soundbox Voice Orb Centerpiece */}
-      <div className="bg-gradient-to-b from-indigo-950 via-slate-900 to-slate-950 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden flex flex-col items-center justify-center shrink-0 min-h-[220px]">
+      <div className="bg-gradient-to-b from-indigo-950 via-slate-900 to-slate-950 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden flex flex-col items-center justify-center shrink-0 min-h-[200px]">
         
         {/* Ambient glow backgrounds */}
         <div className="absolute top-0 w-64 h-32 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
@@ -364,58 +293,27 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({
           {stage === 'listening' ? (
             <div>
               <p className="text-xs uppercase tracking-wider text-rose-300 font-bold mb-1">
-                Listening to speech...
+                Listening...
               </p>
               <h3 className="text-lg font-bold text-white min-h-[30px]">
-                {interimTranscript || transcript || 'Speak your command now...'}
+                {interimTranscript || transcript || 'Speak your order now...'}
               </h3>
-              <p className="text-[11px] text-slate-400 mt-1">Pausing for 1.8s auto-submits, or click to stop</p>
+              <p className="text-[11px] text-slate-400 mt-1">Stop speaking to auto-save, or tap to finish</p>
             </div>
           ) : stage === 'processing' ? (
             <div>
               <p className="text-xs uppercase tracking-wider text-indigo-300 font-bold mb-1">
-                VyaparVaani AI Reasoning...
+                Processing Order...
               </p>
-              <h3 className="text-lg font-bold text-white">Extracting business parameters...</h3>
-            </div>
-          ) : stage === 'confirming' && pendingAction ? (
-            <div className="bg-slate-800/80 border border-slate-700 p-4 rounded-2xl text-left w-full max-w-md animate-in fade-in">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] uppercase tracking-wider font-bold text-indigo-400">
-                  Verification Required
-                </span>
-                <span className="text-xs text-slate-400">Speak "Yes" or click</span>
-              </div>
-              <p className="text-sm font-semibold text-white mb-3">
-                "{pendingAction.confirmation_prompt}"
-              </p>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => handleConfirmOrder(false)}
-                  className="flex-1 py-2 px-3 rounded-xl border border-slate-600 text-xs font-semibold text-slate-300 hover:bg-slate-700 transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleConfirmOrder(true)}
-                  className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white shadow-md shadow-emerald-600/30 transition-all cursor-pointer flex items-center justify-center space-x-1"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Yes, Confirm Order</span>
-                </button>
-              </div>
+              <h3 className="text-lg font-bold text-white">Saving to database & generating bill...</h3>
             </div>
           ) : (
             <div>
               <h3 className="text-base md:text-lg font-bold text-white">
-                {language === 'gu-IN' ? 'બોલવા માટે માઇક્રોફોન પર ટેપ કરો' :
-                 language === 'hi-IN' ? 'बोलने के लिए माइक पर टैप करें' :
-                 'Tap microphone to speak'}
+                Tap microphone to speak
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                {language === 'gu-IN' ? 'ઓર્ડર ઉમેરો, વેપાર પૂછો, અથવા રિમાઇન્ડર સેટ કરો' :
-                 language === 'hi-IN' ? 'ऑर्डर जोड़ें, व्यापार पूछें, या रिमाइंडर सेट करें' :
-                 'Record orders, ask sales totals, or set client follow-ups'}
+                Say your order in one sentence: "Add an order for Rahul. 20 shirts, total 15000 rupees"
               </p>
             </div>
           )}
@@ -429,20 +327,20 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({
         </div>
       </div>
 
-      {/* Vernacular Fast-Voice Chips */}
+      {/* Fast-Voice Action Chips */}
       <div className="shrink-0">
         <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
-          Or tap a quick spoken prompt:
+          One-Click Instant Voice Prompts:
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {getPresetChips().map((chip, idx) => (
+        <div className="flex flex-wrap gap-2">
+          {presetChips.map((chip, idx) => (
             <button
               key={idx}
               onClick={() => executeVoiceCommand(chip.text)}
-              className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-indigo-50/80 hover:border-indigo-300 text-left text-xs font-medium text-slate-800 transition-all cursor-pointer flex items-center justify-between group shadow-2xs"
+              className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-indigo-50/80 hover:border-indigo-300 text-xs font-semibold text-slate-800 transition-all cursor-pointer flex items-center space-x-1.5 shadow-2xs"
             >
-              <span className="truncate">{chip.label}</span>
-              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 shrink-0 ml-1.5" />
+              <span>{chip.label}</span>
+              <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
             </button>
           ))}
         </div>
@@ -452,7 +350,7 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({
       <div className="flex-1 bg-white rounded-3xl border border-slate-200 p-4 shadow-xs overflow-y-auto space-y-3 min-h-[250px]">
         <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-            Voice Stream & Digital Bills
+            Voice Stream & Instant Bills
           </span>
           <span className="text-[11px] font-mono text-slate-400">Live Transaction Feed</span>
         </div>
@@ -474,12 +372,12 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({
             </div>
             <span className="text-[10px] text-slate-400 mt-1 px-1">{m.timestamp}</span>
 
-            {/* If Order Created: Render Authentic Kaccha Bill / Receipt Slip! */}
+            {/* Instant Digital Bill Slip on Screen! */}
             {m.type === 'order_receipt' && m.orderData && (
-              <div className="mt-2 w-full max-w-sm bg-amber-50/80 border-2 border-dashed border-amber-300 rounded-2xl p-4 shadow-xs font-mono text-xs text-slate-800">
+              <div className="mt-2 w-full max-w-sm bg-amber-50/90 border-2 border-dashed border-amber-300 rounded-2xl p-4 shadow-xs font-mono text-xs text-slate-800">
                 <div className="text-center pb-2 border-b border-amber-200 mb-2">
-                  <h4 className="font-bold text-sm tracking-tight text-slate-900">NANDANI TEXTILES</h4>
-                  <p className="text-[10px] text-slate-500">Surat Wholesale Market • Voice Order Slip</p>
+                  <h4 className="font-bold text-sm tracking-tight text-slate-900 font-sans">NANDANI TEXTILES</h4>
+                  <p className="text-[10px] text-slate-500 font-sans">Surat Wholesale Market • Verified Order Slip</p>
                   <p className="text-[10px] text-slate-400">Slip #{m.orderData.id} • {m.orderData.created_at}</p>
                 </div>
 
@@ -502,23 +400,32 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({
                   </div>
                 </div>
 
-                {/* Instant WhatsApp Invoice Share Button */}
-                <button
-                  onClick={() => handleSendWhatsApp(m.orderData!)}
-                  className="w-full flex items-center justify-center space-x-2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-sans font-bold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  <span>Send Bill on WhatsApp</span>
-                </button>
+                {/* Instant WhatsApp Share + Undo Option */}
+                <div className="space-y-2">
+                  <button
+                    onClick={() => handleSendWhatsApp(m.orderData!)}
+                    className="w-full flex items-center justify-center space-x-2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-sans font-bold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>Send Bill on WhatsApp</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleUndoOrder(m.orderData?.id)}
+                    className="w-full text-center text-[11px] text-slate-400 hover:text-red-600 font-sans cursor-pointer py-1"
+                  >
+                    Cancel / Undo this order
+                  </button>
+                </div>
               </div>
             )}
 
-            {/* If Sales Summary: Render Clean Metric Card */}
+            {/* If Sales Summary Query: Render Clean Metric Card */}
             {m.type === 'stats_summary' && m.statsData && (
               <div className="mt-2 w-full max-w-sm bg-indigo-50/90 border border-indigo-200 rounded-2xl p-4 text-xs font-sans">
                 <div className="flex items-center space-x-2 text-indigo-900 font-bold mb-2">
                   <TrendingUp className="w-4 h-4 text-indigo-600" />
-                  <span>Daily Sales Breakdown</span>
+                  <span>Today's Sales Breakdown</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-center">
                   <div className="bg-white p-2.5 rounded-xl border border-indigo-100">
@@ -526,7 +433,7 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({
                     <p className="text-sm font-black text-emerald-700">₹{Number(m.statsData.total_revenue || 0).toLocaleString('en-IN')}</p>
                   </div>
                   <div className="bg-white p-2.5 rounded-xl border border-indigo-100">
-                    <p className="text-[10px] text-slate-500">Orders</p>
+                    <p className="text-[10px] text-slate-500">Total Orders</p>
                     <p className="text-sm font-black text-slate-900">{m.statsData.total_orders || 0}</p>
                   </div>
                 </div>
@@ -548,7 +455,7 @@ export const VoiceOSView: React.FC<VoiceOSViewProps> = ({
               setManualText('');
             }
           }}
-          placeholder="Or type voice command: e.g. Rahul mate 20 shirts 15000..."
+          placeholder="Or type voice command: e.g. Add an order for Rahul. 20 shirts, total 15000 rupees..."
           className="flex-1 bg-transparent px-3 py-1.5 text-xs text-slate-800 focus:outline-none"
         />
         <button

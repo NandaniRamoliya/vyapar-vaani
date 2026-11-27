@@ -9,11 +9,11 @@ export const api = {
     return data.data;
   },
 
-  async processVoice(transcript: string, language: LanguageCode = 'en-IN'): Promise<VoiceProcessResult> {
+  async processVoice(transcript: string, language: LanguageCode = 'en-IN', autoExecute: boolean = true): Promise<VoiceProcessResult> {
     const res = await fetch(`${API_BASE}/voice/process`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transcript, language }),
+      body: JSON.stringify({ transcript, language, auto_execute: autoExecute }),
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.message || 'Failed to process voice command');

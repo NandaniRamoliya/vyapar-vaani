@@ -50,38 +50,9 @@ export const Header: React.FC<HeaderProps> = ({
           <span>Zero-Key Offline AI Ready</span>
         </div>
 
-        {/* Language Selector */}
-        <div className="flex items-center rounded-xl bg-slate-100 p-1 border border-slate-200">
-          <button
-            onClick={() => onLanguageChange('en-IN')}
-            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-              language === 'en-IN'
-                ? 'bg-white text-indigo-600 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            English
-          </button>
-          <button
-            onClick={() => onLanguageChange('hi-IN')}
-            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-              language === 'hi-IN'
-                ? 'bg-white text-indigo-600 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            हिन्दी
-          </button>
-          <button
-            onClick={() => onLanguageChange('gu-IN')}
-            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-              language === 'gu-IN'
-                ? 'bg-white text-indigo-600 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            ગુજરાતી
-          </button>
+        {/* English Only Audio Badge */}
+        <div className="flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-700">
+          <span>English (India)</span>
         </div>
 
         {/* Quick Voice Mic Button */}
