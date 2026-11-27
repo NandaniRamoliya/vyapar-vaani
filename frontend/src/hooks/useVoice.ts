@@ -19,8 +19,9 @@ export function useVoice({ language, onFinalTranscript }: UseVoiceOptions) {
   const accumulatedTextRef = useRef<string>('');
   const onFinalTranscriptRef = useRef(onFinalTranscript);
   const availableVoicesRef = useRef<SpeechSynthesisVoice[]>([]);
+  const hasSubmittedRef = useRef<boolean>(false);
 
-  // Keep callback ref updated without triggering re-runs
+  // Keep callback ref updated without causing re-renders
   useEffect(() => {
     onFinalTranscriptRef.current = onFinalTranscript;
   }, [onFinalTranscript]);
@@ -47,18 +48,8 @@ export function useVoice({ language, onFinalTranscript }: UseVoiceOptions) {
     }
   }, []);
 
-  const commitTranscript = useCallback(() => {
-    const textToSubmit = (accumulatedTextRef.current || interimTranscript || transcript).trim();
-    if (textToSubmit) {
-      setTranscript(textToSubmit);
-      setInterimTranscript('');
-      if (onFinalTranscriptRef.current) {
-        onFinalTranscriptRef.current(textToSubmit);
-      }
-    }
-  }, [interimTranscript, transcript]);
-
-  const stopListening = useCallback(() => {
+  // Safe internal stop: shuts down recognition and cancels timers without submitting
+  const abortListeningInternal = useCallback(() => {
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
@@ -66,58 +57,77 @@ export function useVoice({ language, onFinalTranscript }: UseVoiceOptions) {
 
     if (recognitionRef.current) {
       try {
-        recognitionRef.current.stop();
+        recognitionRef.current.abort();
       } catch (_) {}
+      recognitionRef.current = null;
     }
     setIsListening(false);
+  }, []);
 
-    // Commit whatever text was accumulated during the speech session
-    commitTranscript();
-  }, [commitTranscript]);
+  // Finalizes speech and submits ONCE
+  const finalizeSpeech = useCallback(() => {
+    if (hasSubmittedRef.current) return;
+
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+
+    const textToSubmit = accumulatedTextRef.current.trim();
+    abortListeningInternal();
+
+    if (textToSubmit) {
+      hasSubmittedRef.current = true;
+      setTranscript(textToSubmit);
+      setInterimTranscript('');
+      if (onFinalTranscriptRef.current) {
+        onFinalTranscriptRef.current(textToSubmit);
+      }
+    }
+  }, [abortListeningInternal]);
+
+  const stopListening = useCallback(() => {
+    finalizeSpeech();
+  }, [finalizeSpeech]);
 
   const resetSilenceTimer = useCallback(() => {
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
     }
-    // Automatically finalize after 1.8 seconds of quiet
+    // Automatically finalize after 1.8 seconds of quiet speech
     silenceTimerRef.current = setTimeout(() => {
-      stopListening();
+      finalizeSpeech();
     }, 1800);
-  }, [stopListening]);
+  }, [finalizeSpeech]);
 
   const startListening = useCallback(async () => {
     setError(null);
     setTranscript('');
     setInterimTranscript('');
     accumulatedTextRef.current = '';
+    hasSubmittedRef.current = false;
 
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      setError('Speech recognition is not supported in this browser. Please use Chrome, Edge, or one of the presets.');
+      setError('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
       setIsSupported(false);
       return;
     }
 
-    // Stop any existing instance
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.abort();
-      } catch (_) {}
-    }
+    abortListeningInternal();
 
-    // Request microphone access explicitly to ensure browser permissions are active
+    // Verify microphone access explicitly
     try {
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        // Immediately release stream since SpeechRecognition handles audio capture
         stream.getTracks().forEach((track) => track.stop());
       }
     } catch (permErr: any) {
-      console.warn('Microphone permission warning:', permErr);
+      console.warn('Microphone permission check:', permErr);
       if (permErr.name === 'NotAllowedError' || permErr.name === 'PermissionDeniedError') {
-        setError('Microphone access was denied. Please allow microphone permissions in your browser URL bar.');
+        setError('Microphone access denied. Please click the lock or camera icon in your browser URL bar to allow microphone access.');
         return;
       }
     }
@@ -133,9 +143,12 @@ export function useVoice({ language, onFinalTranscript }: UseVoiceOptions) {
         setIsListening(true);
         setError(null);
         setInterimTranscript('');
+        hasSubmittedRef.current = false;
       };
 
       recognition.onresult = (event: any) => {
+        if (hasSubmittedRef.current) return;
+
         let currentInterim = '';
         let currentFinal = '';
 
@@ -149,20 +162,21 @@ export function useVoice({ language, onFinalTranscript }: UseVoiceOptions) {
         }
 
         const combined = (currentFinal + currentInterim).trim();
-        accumulatedTextRef.current = combined;
-        setInterimTranscript(currentInterim);
-        if (currentFinal) {
-          setTranscript(currentFinal.trim());
+        if (combined) {
+          accumulatedTextRef.current = combined;
+          setInterimTranscript(currentInterim);
+          if (currentFinal) {
+            setTranscript(currentFinal.trim());
+          }
+          // Reset silence detection timer whenever words are spoken
+          resetSilenceTimer();
         }
-
-        // Reset silence detection timeout on each spoken sound
-        resetSilenceTimer();
       };
 
       recognition.onerror = (event: any) => {
-        console.warn('Speech recognition error event:', event.error);
+        console.warn('Speech recognition notice:', event.error);
         if (event.error === 'not-allowed') {
-          setError('Microphone permission denied. Please allow microphone in your browser settings.');
+          setError('Microphone access denied. Please allow microphone permissions in your browser URL bar.');
           setIsListening(false);
         } else if (event.error === 'network') {
           setError('Network issue with speech recognition service. You can also use the preset chips below.');
@@ -179,10 +193,10 @@ export function useVoice({ language, onFinalTranscript }: UseVoiceOptions) {
       recognition.start();
     } catch (err: any) {
       console.error('Failed to start SpeechRecognition:', err);
-      setError('Could not initialize microphone. Please check permissions or try clicking a preset.');
+      setError('Could not initialize microphone. Please check permissions or use one of the presets.');
       setIsListening(false);
     }
-  }, [language, resetSilenceTimer]);
+  }, [language, abortListeningInternal, resetSilenceTimer]);
 
   /**
    * Warm, natural human Indian TTS speech synthesis
@@ -190,9 +204,9 @@ export function useVoice({ language, onFinalTranscript }: UseVoiceOptions) {
   const speak = useCallback((text: string, lang: LanguageCode = language) => {
     if (!('speechSynthesis' in window)) return;
 
-    window.speechSynthesis.cancel(); // Cancel any current utterance
+    window.speechSynthesis.cancel(); // Cancel any ongoing speech
 
-    // Clean text for natural speech (e.g. read ₹15,000 as "15,000 rupees")
+    // Natural formatting for speech
     const naturalText = text
       .replace(/₹\s*([0-9,]+)/g, '$1 rupees')
       .replace(/•/g, ', ')
@@ -200,15 +214,14 @@ export function useVoice({ language, onFinalTranscript }: UseVoiceOptions) {
 
     const utterance = new SpeechSynthesisUtterance(naturalText);
     utterance.lang = lang;
-    // Humanized conversational cadence: 0.92x rate + slightly warm pitch
-    utterance.rate = 0.94;
+    utterance.rate = 0.94; // Natural human cadence
     utterance.pitch = 1.02;
 
     const voices = availableVoicesRef.current.length > 0 
       ? availableVoicesRef.current 
       : window.speechSynthesis.getVoices();
 
-    // Priority 1: High quality Indian Natural Neural voices (Microsoft Online Natural, Google)
+    // Priority 1: High quality Natural / Online neural voices
     let selectedVoice = voices.find((v) => {
       const name = v.name.toLowerCase();
       const vLang = v.lang.toLowerCase();
@@ -224,7 +237,7 @@ export function useVoice({ language, onFinalTranscript }: UseVoiceOptions) {
       selectedVoice = voices.find((v) => v.lang.toLowerCase() === lang.toLowerCase());
     }
 
-    // Priority 3: Any Indian English / Hindi voice
+    // Priority 3: Any Indian voice
     if (!selectedVoice) {
       selectedVoice = voices.find((v) => {
         const name = v.name.toLowerCase();

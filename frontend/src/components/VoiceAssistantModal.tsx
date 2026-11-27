@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Mic, 
   MicOff, 
@@ -39,12 +39,17 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
   const [pendingResult, setPendingResult] = useState<VoiceProcessResult | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [ttsEnabled, setTtsEnabled] = useState(true);
+  const isProcessingRef = useRef(false);
 
   const processTranscript = async (text: string) => {
-    stopListening();
+    const cleanText = text ? text.trim() : '';
+    if (!cleanText) return;
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+
     setStage('processing');
     try {
-      const result = await api.processVoice(text, language);
+      const result = await api.processVoice(cleanText, language);
       setPendingResult(result);
 
       if (result.confirmation_required) {
@@ -64,6 +69,8 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
     } catch (err: any) {
       console.error(err);
       setStage('error');
+    } finally {
+      isProcessingRef.current = false;
     }
   };
 
@@ -91,12 +98,14 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      isProcessingRef.current = false;
       setStage('idle');
       setPendingResult(null);
       setManualInput('');
       setSuccessMessage('');
       setTranscript('');
     } else {
+      isProcessingRef.current = false;
       stopListening();
       stopSpeaking();
     }
