@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Mic, 
   MicOff, 
@@ -40,10 +40,37 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
   const [successMessage, setSuccessMessage] = useState('');
   const [ttsEnabled, setTtsEnabled] = useState(true);
 
-  const handleFinalSpeech = async (spokenText: string) => {
-    if (!spokenText.trim()) return;
-    await processTranscript(spokenText);
+  const processTranscript = async (text: string) => {
+    stopListening();
+    setStage('processing');
+    try {
+      const result = await api.processVoice(text, language);
+      setPendingResult(result);
+
+      if (result.confirmation_required) {
+        setStage('confirming');
+        if (ttsEnabled && result.confirmation_prompt) {
+          speak(result.confirmation_prompt, language);
+        }
+      } else {
+        // Direct query intent (e.g. show summary)
+        setStage('executed');
+        setSuccessMessage(result.spoken_response);
+        if (ttsEnabled && result.spoken_response) {
+          speak(result.spoken_response, language);
+        }
+        onActionCompleted();
+      }
+    } catch (err: any) {
+      console.error(err);
+      setStage('error');
+    }
   };
+
+  const handleFinalSpeech = useCallback((spokenText: string) => {
+    if (!spokenText.trim()) return;
+    processTranscript(spokenText);
+  }, [language, ttsEnabled]);
 
   const {
     isListening,
@@ -51,6 +78,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
     interimTranscript,
     isSpeaking,
     isSupported,
+    error: voiceError,
     startListening,
     stopListening,
     speak,
@@ -82,33 +110,6 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
   }, [isListening]);
 
   if (!isOpen) return null;
-
-  const processTranscript = async (text: string) => {
-    stopListening();
-    setStage('processing');
-    try {
-      const result = await api.processVoice(text, language);
-      setPendingResult(result);
-
-      if (result.confirmation_required) {
-        setStage('confirming');
-        if (ttsEnabled && result.confirmation_prompt) {
-          speak(result.confirmation_prompt, language);
-        }
-      } else {
-        // Direct query intent (e.g. show summary)
-        setStage('executed');
-        setSuccessMessage(result.spoken_response);
-        if (ttsEnabled && result.spoken_response) {
-          speak(result.spoken_response, language);
-        }
-        onActionCompleted();
-      }
-    } catch (err: any) {
-      console.error(err);
-      setStage('error');
-    }
-  };
 
   const handleConfirmAction = async (confirmed: boolean) => {
     if (!pendingResult) return;
@@ -209,6 +210,13 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
           {/* Stage 1: IDLE / READY */}
           {stage === 'idle' && (
             <div className="w-full flex flex-col items-center text-center">
+              {voiceError && (
+                <div className="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center space-x-2 max-w-sm text-left">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                  <span>{voiceError}</span>
+                </div>
+              )}
+
               <div className="relative mb-6">
                 <button
                   onClick={startListening}
@@ -247,6 +255,13 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
           {/* Stage 2: LISTENING */}
           {stage === 'listening' && (
             <div className="flex flex-col items-center text-center py-4">
+              {voiceError && (
+                <div className="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center space-x-2 max-w-sm text-left">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                  <span>{voiceError}</span>
+                </div>
+              )}
+
               <div className="relative mb-6">
                 <div className="absolute inset-0 rounded-full bg-indigo-500/20 animate-pulse-ring scale-150" />
                 <button
