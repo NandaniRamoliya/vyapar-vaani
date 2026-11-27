@@ -28,6 +28,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const getLabels = () => {
     if (language === 'gu-IN') {
       return {
+        voiceOS: 'વોઇસ ઓએસ',
         overview: 'ડેશબોર્ડ',
         orders: 'ઓર્ડર્સ',
         customers: 'ગ્રાહકો',
@@ -41,6 +42,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
     if (language === 'hi-IN') {
       return {
+        voiceOS: 'वॉइस ओएस',
         overview: 'डैशबोर्ड',
         orders: 'ऑर्डर्स',
         customers: 'ग्राहक',
@@ -53,6 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       };
     }
     return {
+      voiceOS: 'Voice OS',
       overview: 'Overview',
       orders: 'Orders',
       customers: 'Customers',
@@ -68,6 +71,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const labels = getLabels();
 
   const navItems = [
+    { id: 'voice_os', label: labels.voiceOS, icon: Mic },
     { id: 'overview', label: labels.overview, icon: LayoutDashboard },
     { id: 'orders', label: labels.orders, icon: ShoppingBag },
     { id: 'customers', label: labels.customers, icon: Users },

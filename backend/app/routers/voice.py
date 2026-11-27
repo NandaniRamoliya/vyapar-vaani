@@ -20,14 +20,52 @@ def process_voice_command(request: ProcessVoiceRequest):
 
     # Parse using Multilingual NLP Parser
     parsed = NLPParser.parse(request.transcript, request.language)
+    spoken_response = parsed["spoken_response"]
+
+    # Enrich query intents with real database numbers!
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    if parsed["intent"] == "show_business_summary":
+        cursor.execute("SELECT COUNT(*), COALESCE(SUM(total_amount), 0) FROM orders")
+        row = cursor.fetchone()
+        tot_orders, tot_rev = row[0], float(row[1])
+        cursor.execute("SELECT COUNT(*) FROM orders WHERE status = 'pending'")
+        pending_count = cursor.fetchone()[0]
+
+        if "gu" in request.language:
+            spoken_response = f"આજનો કુલ વેપાર {tot_orders} ઓર્ડરમાં ₹{tot_rev:,.0f} થયો છે, અને {pending_count} ઓર્ડર બાકી છે."
+        elif "hi" in request.language:
+            spoken_response = f"आज का कुल व्यापार {tot_orders} ऑर्डर्स में ₹{tot_rev:,.0f} है, और {pending_count} ऑર્ડર पेंडिंग हैं।"
+        else:
+            spoken_response = f"Your total business today is rupees {int(tot_rev):,} across {tot_orders} orders, with {pending_count} pending dispatches."
+        parsed["extracted_data"]["stats"] = {"total_revenue": tot_rev, "total_orders": tot_orders, "pending_orders": pending_count}
+
+    elif parsed["intent"] == "list_orders":
+        cursor.execute("SELECT customer_name, total_amount FROM orders WHERE status = 'pending' LIMIT 3")
+        pending_rows = cursor.fetchall()
+        if pending_rows:
+            names = ", ".join([r["customer_name"] for r in pending_rows])
+            tot_pending = sum([r["total_amount"] for r in pending_rows])
+            if "gu" in request.language:
+                spoken_response = f"તમારા {len(pending_rows)} ઓર્ડર બાકી છે: {names} માટે, કુલ રકમ ₹{tot_pending:,.0f}."
+            elif "hi" in request.language:
+                spoken_response = f"आपके {len(pending_rows)} ऑर्डर्स पेंडिंग हैं: {names} के लिए, कुल राशि ₹{tot_pending:,.0f}."
+            else:
+                spoken_response = f"You have {len(pending_rows)} pending orders for {names}, totaling rupees {int(tot_pending):,}."
+        else:
+            if "gu" in request.language:
+                spoken_response = "હાલમાં કોઈ પેન્ડિંગ ઓર્ડર નથી. બધા ઓર્ડર કમ્પ્લીટ છે!"
+            elif "hi" in request.language:
+                spoken_response = "फिलहाल कोई पेंडिंग ऑर्डर नहीं है। सभी ऑर्डर्स पूरे हो चुके हैं!"
+            else:
+                spoken_response = "You have no pending orders right now. Everything is up to date!"
 
     interaction_id = f"vact_{uuid.uuid4().hex[:10]}"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     initial_status = "pending_confirmation" if parsed["confirmation_required"] else "info"
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO voice_interactions 
         (id, transcript, detected_intent, language, extracted_data, confirmation_required, confirmation_prompt, spoken_response, execution_status, created_at)
@@ -40,7 +78,7 @@ def process_voice_command(request: ProcessVoiceRequest):
         json.dumps(parsed["extracted_data"]),
         1 if parsed["confirmation_required"] else 0,
         parsed["confirmation_prompt"],
-        parsed["spoken_response"],
+        spoken_response,
         initial_status,
         now
     ))
@@ -55,7 +93,7 @@ def process_voice_command(request: ProcessVoiceRequest):
         "extracted_data": parsed["extracted_data"],
         "confirmation_required": parsed["confirmation_required"],
         "confirmation_prompt": parsed["confirmation_prompt"],
-        "spoken_response": parsed["spoken_response"],
+        "spoken_response": spoken_response,
         "status": initial_status,
     }
 

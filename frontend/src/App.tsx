@@ -8,12 +8,13 @@ import { CustomersTab } from './components/CustomersTab';
 import { RemindersTab } from './components/RemindersTab';
 import { VoiceHistoryTab } from './components/VoiceHistoryTab';
 import { SettingsTab } from './components/SettingsTab';
+import { VoiceOSView } from './components/VoiceOSView';
 import { DashboardStats, Order, Customer, Reminder, VoiceInteraction, LanguageCode } from './types';
 import { api } from './services/api';
 import { Mic } from 'lucide-react';
 
 export function App() {
-  const [currentTab, setCurrentTab] = useState('overview');
+  const [currentTab, setCurrentTab] = useState('voice_os');
   const [language, setLanguage] = useState<LanguageCode>('en-IN');
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
 
@@ -80,6 +81,13 @@ export function App() {
             </div>
           ) : (
             <>
+              {currentTab === 'voice_os' && (
+                <VoiceOSView
+                  language={language}
+                  onLanguageChange={setLanguage}
+                  onRefreshData={loadAllData}
+                />
+              )}
               {currentTab === 'overview' && (
                 <DashboardTab
                   stats={stats}

@@ -17,6 +17,8 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const getTitles = () => {
     switch (currentTab) {
+      case 'voice_os':
+        return { title: 'VyaparVaani Voice OS', subtitle: 'Voice-First Bharat Soundbox Assistant for Shopkeepers' };
       case 'orders':
         return { title: 'Orders Management', subtitle: 'Real-time order entries created via voice commands' };
       case 'customers':
