@@ -130,7 +130,7 @@ export const TodayTab: React.FC<Props> = ({ language, refreshKey, onOpenVoice, o
                   <p className="font-bold text-slate-900 truncate">{a.customer_name}</p>
                   {a.days_since_payment != null && (
                     <p className={`text-xs ${a.days_since_payment > 30 ? 'text-rose-600 font-semibold' : 'text-slate-500'}`}>
-                      {a.never_paid ? tr('common.unpaidDays', { n: a.days_since_payment }) : a.days_since_payment === 0 ? tr('common.paidToday') : tr('common.daysSincePay', { n: a.days_since_payment })}
+                      {a.never_paid ? (a.days_since_payment === 0 ? tr('common.udharToday') : tr('common.unpaidDays', { n: a.days_since_payment })) : a.days_since_payment === 0 ? tr('common.paidToday') : tr('common.daysSincePay', { n: a.days_since_payment })}
                     </p>
                   )}
                 </div>

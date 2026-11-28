@@ -1,3 +1,5 @@
+from fastapi import Depends
+from app.security import shop_user
 import json
 import uuid
 from datetime import datetime
@@ -8,7 +10,7 @@ from app.services.replies import money
 from app.services.business_logic import BusinessService
 from app.database.db import get_db_connection
 
-router = APIRouter(prefix="/api/voice", tags=["Voice Assistant"])
+router = APIRouter(prefix="/api/voice", tags=["Voice Assistant"], dependencies=[Depends(shop_user)])
 
 @router.post("/process", response_model=ApiResponse)
 def process_voice_command(request: ProcessVoiceRequest):
@@ -20,7 +22,9 @@ def process_voice_command(request: ProcessVoiceRequest):
         raise HTTPException(status_code=400, detail="Transcript cannot be empty")
 
     # Vaani understands the sentence (with conversation memory) and prepares the reply
-    parsed = VoiceAgent.handle(request.transcript, request.language, request.context, request.client_time)
+    parsed = VoiceAgent.handle(request.transcript, request.language, request.context, request.client_time,
+                               request.auto_language)
+    reply_language = parsed.get("reply_language") or request.language
     spoken_response = parsed["spoken_response"]
 
     conn = get_db_connection()
@@ -32,16 +36,16 @@ def process_voice_command(request: ProcessVoiceRequest):
         if pending_rows:
             names = ", ".join([r["customer_name"] for r in pending_rows])
             tot_pending = money(sum([r["total_amount"] for r in pending_rows]))
-            if "gu" in request.language:
+            if "gu" in reply_language:
                 spoken_response = f"તમારા {len(pending_rows)} ઓર્ડર બાકી છે: {names}, કુલ {tot_pending}."
-            elif "hi" in request.language:
+            elif "hi" in reply_language:
                 spoken_response = f"आपके {len(pending_rows)} ऑर्डर पेंडिंग हैं: {names}, कुल {tot_pending}।"
             else:
                 spoken_response = f"You have {len(pending_rows)} pending orders for {names}, totaling {tot_pending}."
         else:
-            if "gu" in request.language:
+            if "gu" in reply_language:
                 spoken_response = "હાલમાં કોઈ પેન્ડિંગ ઓર્ડર નથી. બધા ઓર્ડર કમ્પ્લીટ છે!"
-            elif "hi" in request.language:
+            elif "hi" in reply_language:
                 spoken_response = "फिलहाल कोई पेंडिंग ऑर्डर नहीं है। सभी ऑर्डर्स पूरे हो चुके हैं!"
             else:
                 spoken_response = "You have no pending orders right now. Everything is up to date!"
@@ -55,7 +59,7 @@ def process_voice_command(request: ProcessVoiceRequest):
     if request.auto_execute and parsed["confirmation_required"]:
         try:
             executed_result, spoken_response = BusinessService.execute_confirmed_action(
-                parsed["intent"], parsed["extracted_data"], request.language
+                parsed["intent"], parsed["extracted_data"], reply_language
             )
         except ValueError as e:
             conn.close()
@@ -70,7 +74,7 @@ def process_voice_command(request: ProcessVoiceRequest):
         interaction_id,
         request.transcript,
         parsed["intent"],
-        request.language,
+        reply_language,
         json.dumps(parsed["extracted_data"]),
         1 if parsed["confirmation_required"] else 0,
         parsed["confirmation_prompt"],
@@ -85,7 +89,7 @@ def process_voice_command(request: ProcessVoiceRequest):
         "interaction_id": interaction_id,
         "transcript": request.transcript,
         "intent": parsed["intent"],
-        "language": request.language,
+        "language": reply_language,
         "extracted_data": parsed["extracted_data"],
         "confirmation_required": parsed["confirmation_required"],
         "confirmation_prompt": parsed["confirmation_prompt"],
@@ -93,6 +97,8 @@ def process_voice_command(request: ProcessVoiceRequest):
         "status": initial_status,
         "executed_result": executed_result,
         "context": parsed.get("context") or {},
+        "reply_language": reply_language,
+        "detected_language": parsed.get("detected_language"),
     }
 
     return ApiResponse(

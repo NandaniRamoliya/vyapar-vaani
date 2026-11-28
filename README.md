@@ -1,157 +1,103 @@
-# 🎙️ VyaparVaani: Vaani, the voice munim (व्यापार वाणी / વ્યાપાર વાણી)
+# 🎙️ VyaparVaani: Vaani, the voice munim for Indian shops
 
-> **Build for Bharat · Theme: Livelihoods and small business**
-> **Participant:** Nandani Ramoliya
+> **Build for Bharat · Livelihoods and small business**
 >
 > ### *The first khata where the customer's own voice is the signature.*
 
+VyaparVaani lets a shopkeeper run their khata (credit ledger), bills and reminders **by talking**, in
+**English, Hindi, Gujarati, or a mix of them in one sentence**. When udhar is given, the **customer
+confirms it in their own voice**. The recording is sealed with a tamper-evident fingerprint and can be
+played back the day they say *"maine kab liya?"*.
+
+It runs on the phone the shop already has, needs **no API keys**, and one server can host many shops,
+each with **its own login and its own isolated database**.
+
+| | |
+|---|---|
+| 🚀 Run it | `docker compose up --build` → http://localhost:3000 |
+| 🔑 Demo logins | cloth shop `nandani` / `nandani@123` · kirana `patel` / `patel@123` · admin `admin` / `admin@123` |
+| 📚 Docs | [User guide](docs/USER_GUIDE.md) · [Admin guide](docs/ADMIN_GUIDE.md) · [Deployment](docs/DEPLOYMENT.md) · [Architecture](docs/ARCHITECTURE.md) · [API](docs/API.md) · [Security](docs/SECURITY.md) · [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) |
+| 📊 Pitch deck | [pitch_deck.pdf](pitch_deck.pdf) |
+
 ---
 
-## The problem nobody solved
+## The problem
 
-Most small-shop business in India runs on **udhar** (credit). Apps like Khatabook digitised the notebook, but the real pain was never the writing. It's the **dispute**:
-
-> *"Maine kab liya?"* · *"Itna nahi tha!"* · *"Aapne galat likha hoga."*
-
-Many customers can't read or sign, so the khata is just the shopkeeper's word against theirs. And the shopkeeper's hands are busy (cutting cloth, packing, counting cash), so typing into an app at the counter doesn't happen anyway.
+Most small-shop business in India runs on **udhar**. Apps digitised the notebook, but the real pain is the
+**dispute**: *"Maine kab liya?"*, *"Itna nahi tha!"*. Many customers can't read or sign, so the khata is the
+shopkeeper's word against theirs. And the shopkeeper's hands are busy, so typing at the counter doesn't happen.
 
 ## What Vaani does
 
-Vaani is a voice agent for the shop counter that talks like a person. It runs on the phone the shopkeeper already has, in **English, Hindi and Gujarati**.
-
-| The shopkeeper says | Vaani does |
+| The shopkeeper says | Vaani |
 |---|---|
-| "Rahul ko udhar likho" | *"Okay, Rahul. How many rupees?"* — asks for what's missing instead of guessing |
-| "5000" | *"Rahul Sharma, ₹5,000 udhar. Balance becomes ₹20,000. Shall I write it?"* |
-| "Haan ji" | Saves it hands-free, then turns to the customer: *"Rahul ji, to confirm, please say: Yes, I have taken ₹5,000 on udhar."* |
-| *(customer speaks)* | Records the customer's voice, **seals it with a SHA-256 fingerprint** and attaches it to that khata entry |
-| "Rahul ka saboot sunao" (weeks later) | *"Here is Rahul ji's own voice from 12 November, for ₹5,000"*, and plays it |
-| "राहुल ने 3000 दिए" | Understands **ने** = Rahul paid (payment), vs **"प्रिया को 2000 दिए"** = you gave Priya credit (udhar) |
-| "उसका कितना बाकी है?" | Remembers who you were just talking about |
-| "ભૂલ થઈ ગઈ, કાઢી નાખો" | Undoes the last entry (but never a voice-signed one) |
-| "આજનો હિસાબ" | Day's sales, udhar given, cash collected, and who to chase tomorrow, in Gujarati |
+| "Rahul ko udhar likho" | *"How many rupees?"* (asks for what is missing, never guesses) |
+| "5000" → "Haan ji" | Saves it hands-free, then asks the customer: *"Rahul ji, please say: Yes, I have taken ₹5,000 on udhar"*, records them, and seals the clip |
+| "Rahul ka saboot sunao" | Plays Rahul's own voice, with date and fingerprint, and shares it to WhatsApp |
+| "राहुल ने 3000 दिए" / "प्रिया को 2000 दिए" | **ने** = Rahul paid you · **को** = you gave Priya udhar |
+| "Rahul deposited 2000" / "add money" / "जमा" / "ડિપોઝિટ" | All mean *money received* |
+| "Anjali ne pura hisaab clear kar diya" | Settles her whole balance |
+| "Priya ke liye bhi" / "aur 500" | Repeats the last action for Priya / with a new amount |
+| "उसका कितना बाकी है?" | Remembers who you were talking about |
+| "कल सुबह 10 बजे राहुल से पैसे लेने हैं, याद दिलाना" | At 10 AM it **rings, speaks, vibrates and notifies**, with **Call** and **WhatsApp** buttons |
+| "આજનો હિસાબ" | Today's sales, udhar given, cash collected and who to chase tomorrow, in Gujarati |
+| "I want to make sure Rahul has received…" said with Hindi selected | Understands the English (even when Chrome writes it as "आई वांट टू…"), **replies in English and switches the app** |
 
-## Made for shopkeepers, not techies
+### What makes it different
 
-- **The whole app speaks your language.** Pick EN / हिं / ગુ and every screen switches: Today, Khata, Reminders, Bills, Customers and Settings.
-- **A "Today" screen instead of a dashboard.** Four plain numbers: *sold today*, *money received*, *udhar given*, *total udhar in market*. Then today's tasks with Call / Done buttons, who to collect from with a WhatsApp button, and "what happened" written as sentences.
-- **A real conversation.** Tap once and keep talking: the mic reopens after every reply and closes by itself after silence. Vaani remembers the last customer ("uska"), asks for missing details, understands **"Priya ke liye bhi"** (same again for Priya) and **"aur 500"**, and the chat survives a reload.
-- **Same meaning, different words.** *deposit / deposited / add money / jama / जमा / ડિપોઝિટ* all mean "money received". *le gaya / took / માલ લઈ ગયા* mean udhar. *"pura hisaab clear"* settles the full balance. English words spoken in Gujarati or Hindi script (*એડ ન્યૂ કસ્ટમર*) are understood too.
-- **Reminders that actually remind.** *"10 मिनट बाद याद दिलाना"*, *"kal subah 10 baje Rahul ko call karna"*, *"કાલે સાંજે 5 વાગ્યે"*. When it's time, Vaani **rings, speaks the reminder, vibrates and shows a phone notification**, with one-tap **Call** (opens the dialer), **WhatsApp** (pre-filled with the pending balance), **Done** and **10 min later**. The app must be open, either on screen or in the background; a fully closed app can't ring yet (that needs push notifications, planned for the finale).
+1. **Voice signature.** The customer's spoken "haan" is the proof. A typing app can't copy this.
+2. **Tamper-evident, without keys or blockchain.** Every recording is SHA-256 fingerprinted and hash-chained. Editing a signed amount, swapping a recording or deleting one shows **"Tampering detected"**. Signed entries can't be deleted, only balanced.
+3. **Mixed-language understanding.** English, हिन्दी, ગુજરાતી, Hinglish and Gujlish. English words written in Indic script, Gujarati heard by a Hindi recogniser, spoken numbers (*पांच हजार*, *dedh lakh*, *સાડા ત્રણ હજાર*), and names in any script (राहुल / રાહુલે / Raahul → *Rahul Sharma*).
+4. **A real conversation.** Tap once and keep talking; the mic reopens after each reply until you go quiet. Vaani asks follow-up questions, lets you interrupt, undoes mistakes, and keeps the chat across reloads.
+5. **Built for shopkeepers.** Every screen switches language. A plain **Today** screen replaces dashboards, and buttons are big and thumb-friendly on phones.
+6. **Multi-shop platform.** An admin console creates shops and logins, pauses shops and resets passwords. Each shop's data lives in **its own database file**.
 
-## Why this is new
-
-1. **Voice Signature (bol ke khata, bol ke pakka).** The customer confirms udhar in their own voice, and it becomes playable proof that works for people who can't read or write. A typing app cannot copy this.
-2. **Tamper-evident without blockchain or keys.** Every signature stores `SHA-256(audio)` and is **hash-chained** to the previous one (`chain = SHA-256(prev | entry | customer | amount | time | audio_hash)`). Editing a signed amount, swapping a recording, or deleting a signature breaks the chain, and the Khata tab shows **"Tampering detected"**. Signed entries cannot be deleted; you add a payment to balance them, just like a real ledger.
-3. **A real conversation, not a form.** Follow-up questions, memory of the last customer ("uska"), barge-in (tap while it's speaking), spoken yes/no in three languages, natural pauses, and a different phrasing each time.
-4. **Built for Bharat languages, offline-first.** A zero-key engine understands Hindi and Gujarati script **and** Hinglish:
-   - Names in any script match the customer book: राहुल / રાહુલે / Raahul → *Rahul Sharma*
-   - Spoken numbers become digits: *पांच हजार* → 5000, *dedh lakh* → 150000, *સાડા ત્રણ હજાર* → 3500
-   - Grammar decides direction: *ne/ने/-એ* (they paid) vs *ko/को/-ને* (you gave)
-5. **Phone-first.** Big thumb-reach mic, bottom navigation, installable as an app (PWA), share the voice proof straight to WhatsApp through the phone's share sheet, and reminders and receipts in the customer's language.
-
-## 🔑 Zero secret keys
-
-Clone and run. No API keys are needed and **none are used**: the language engine, the agent, the voice signatures and the hash chain are all local Python. Speech-to-text and text-to-speech use the browser's built-in Web Speech engines. Note that Chrome's speech recognition uses Google's service, so it needs internet; typing works offline.
-
----
-
-## 🚀 Run it
+## Run it
 
 ### One command (Docker), how judges run it
 ```bash
 docker compose up --build
 ```
-Open **http://localhost:3000**. That's the whole app (web + API) on one port. No `.env` file and no API keys are needed. Data (khata, orders, voice signatures) is kept in a Docker volume across restarts.
+Open **http://localhost:3000** and tap a demo login. No `.env`, no keys.
 
-### Without Docker (development)
+### Development
 ```bash
-# Terminal 1
-cd backend
-pip install -r requirements.txt
-python -m uvicorn app.main:app --port 8000
+cd backend && pip install -r requirements.txt && python -m uvicorn app.main:app --port 8000
 ```
 ```bash
-# Terminal 2
-cd frontend
-npm install
-npm run dev
+cd frontend && npm install && npm run dev        # http://localhost:3000
 ```
-Open **http://localhost:3000** in Chrome or Edge. On Windows, `run_app.bat` does both.
+On a phone (the mic needs https): `cd frontend && npm run phone`, then open the `https://192.168…:3000` address.
+Details: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-### On a phone (recommended for the demo)
-Phones only allow the microphone on **https**, so there is a phone mode:
-```bash
-cd frontend
-npm run phone
-```
-1. Open the `Network: https://192.168.x.x:3000` address on the phone (same Wi-Fi). On Windows, `start_phone.bat` does this.
-2. Accept the one-time certificate warning (**Advanced → Proceed**).
-3. Chrome menu → **Add to Home screen**. Vaani now opens like an app.
+### Online
+- **GitHub Pages** hosts the web app (static). Workflow: [`.github/workflows/pages.yml`](.github/workflows/pages.yml)
+- **Render** (or any Docker host) runs the API server. Blueprint: [`render.yaml`](render.yaml)
 
-Best on **Chrome for Android**, which has Hindi and Gujarati speech built in. Safari on iPhone works for English and Hindi.
+GitHub Pages can't run the Python server, so the two are connected with one setting (`API_BASE_URL`). Step by step: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#3-github-pages--render).
 
----
-
-## 🎬 2-minute demo script
-
-1. **(0:00) Problem.** "In India, udhar runs on trust and a notebook. When a customer says *'maine kab liya?'*, the shopkeeper has no proof."
-2. **(0:15) Hands-free entry.** Tap the mic once: *"Rahul ko udhar likho."* → Vaani: *"How many rupees?"* → *"5000"* → *"…Shall I write it?"* → *"Haan ji."* No more taps.
-3. **(0:40) Voice signature.** Vaani asks the customer to confirm. A teammate (or a judge) says *"Haan, maine 5000 udhar liye."* The card turns green: **Voice-signed · #fingerprint**.
-4. **(1:00) The dispute.** "Two weeks later Rahul says he never took it." → *"Rahul ka saboot sunao."* → **his own voice plays.** Tap **Share voice proof** → WhatsApp.
-5. **(1:20) Bharat languages.** Switch to हिं: *"राहुल ने 3000 दिए"* → payment. Switch to ગુ: *"આજનો હિસાબ"* → full day summary in Gujarati.
-6. **(1:40) Trust.** Open the Khata tab → **"tamper check passed"**. Explain the hash chain in one line. "Zero API keys. Runs on the phone you already have."
-
----
-
-## 🧪 Tests
+## Tests
 
 ```bash
-cd backend
-python -m pytest -q        # 79 tests
+cd backend && python -m pytest -q     # 143 tests
 ```
 They cover:
-- Multi-turn conversations in English, Hindi and Gujarati, including the Gujarati "add customer → her name is Nandini" follow-up
-- Synonyms (deposit / add money / jama), settling a full balance, "Priya ke liye bhi" continuations
-- Reminder times in three languages, and reminders becoming due, snoozed and completed
-- Who-paid-whom grammar, pronoun memory, and undo
-- Indic number words and cross-script name matching
-- Voice-signature upload and playback, plus the tamper checks: an edited amount or a swapped recording breaks the chain
-- No double-saving, and orders on udhar linked to the khata
+- Conversations in three languages, mixed-language detection, synonyms, follow-ups and reminders
+- Voice signatures and the tamper checks
+- Logins, lockout, hashed passwords, admin actions
+- **Shop isolation**: a shop can't see, query by voice, or play the recordings of another shop
 
-## 🧱 Architecture
+CI runs the tests, the frontend build and the Docker build on every push.
 
-```
-Phone / browser (React 19 + Tailwind, PWA)
-  ├─ Web Speech API  ── speech → text (en-IN / hi-IN / gu-IN), text → speech
-  ├─ MediaRecorder   ── customer's voice signature (auto-stops on silence)
-  └─ VoiceAgent UI   ── keeps conversation context, sends it with every utterance
-                                │  /api/voice/process  {transcript, language, context}
-FastAPI (Python, stateless)     ▼
-  ├─ services/indic.py      ── Indic digits, number words, transliteration, fuzzy names
-  ├─ services/nlp_parser.py ── intents + entities (orders, udhar, payment, proof, undo, hisaab…)
-  ├─ services/agent.py      ── dialogue: follow-up questions, memory, replies in 3 languages
-  ├─ services/signatures.py ── SHA-256 + hash chain, verification
-  └─ SQLite                 ── customers, orders, ledger_entries, voice_signatures, voice log
-```
+## Tech
 
-Pitch deck: [`pitch_deck.pdf`](pitch_deck.pdf) (source: `pitch_deck.html`).
-
-Key endpoints:
-
-| Method | Endpoint |
-|---|---|
-| `POST` | `/api/voice/process`, `/api/voice/confirm` |
-| `GET` | `/api/khata`, `/api/khata/{customer_id}` |
-| `POST` | `/api/khata/entries/{id}/signature` |
-| `GET` | `/api/signatures/{id}/audio`, `/api/signatures/verify` |
-| `GET` | `/api/dashboard/today`, `/api/reminders/due` |
-| `PATCH` | `/api/reminders/{id}/snooze`, `/api/reminders/{id}/toggle` |
-
-Full docs at `http://127.0.0.1:8000/docs`.
+React 19 + TypeScript + Tailwind (PWA) · Web Speech API (speech ↔ text) · MediaRecorder (voice signatures) ·
+FastAPI (Python) · SQLite (one file per shop) · Docker. **No paid AI service, no API keys.**
+Why and how: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Honest limitations
 
-- The language engine is rule-based. It handles shop vocabulary well, but not arbitrary chit-chat.
-- Speech recognition quality depends on the phone's browser. Hindi and Gujarati speech work best in Chrome (Android or desktop).
-- A voice signature is **evidence the merchant can play back**. It is not a claim of legal enforceability, and the customer's spoken "haan" is their consent to be recorded.
+- The language engine is rule-based. It handles shop vocabulary in three languages well, but not open chit-chat.
+- Speech-to-text quality depends on the phone's browser. Chrome on Android is best for Hindi and Gujarati, and it needs internet; typing works offline.
+- Reminders ring while the app is open (on screen or in the background). Ringing when the app is fully closed needs push notifications, planned next.
+- A voice signature is evidence the merchant can play back. It is not a claim of legal enforceability, and the customer's spoken "haan" is their consent to be recorded.

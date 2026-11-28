@@ -1,3 +1,5 @@
+from fastapi import Depends
+from app.security import shop_user
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -8,7 +10,7 @@ from app.database.db import get_db_connection
 from app.models.schemas import ApiResponse, ReminderCreate
 from app.services import reminders as rem
 
-router = APIRouter(prefix="/api/reminders", tags=["Reminders"])
+router = APIRouter(prefix="/api/reminders", tags=["Reminders"], dependencies=[Depends(shop_user)])
 
 
 @router.get("", response_model=ApiResponse)

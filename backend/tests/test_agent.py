@@ -3,10 +3,10 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
-os.environ["DATABASE_PATH"] = "test_vyapar.db"
 
-from app.main import app
-from app.database.db import init_db, get_db_connection
+from app.main import app  # noqa: F401
+from conftest import DEMO_SHOP, reset_demo_shop, shop_client
+from app.database.db import get_db_connection, shop_context
 from app.services.indic import best_name_match, normalize_numbers, phonetic_key
 
 CUSTOMERS = ["Rahul Sharma", "Priya Patel", "Suresh Verma", "Anjali Gupta"]
@@ -15,18 +15,11 @@ FAKE_AUDIO = b"\x1aE\xdf\xa3" + b"opus-voice-bytes" * 200  # webm magic + payloa
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_test_db():
-    if os.path.exists("test_vyapar.db"):
-        os.remove("test_vyapar.db")
-    init_db()
+    reset_demo_shop()
     yield
-    if os.path.exists("test_vyapar.db"):
-        try:
-            os.remove("test_vyapar.db")
-        except OSError:
-            pass
 
 
-client = TestClient(app)
+client = shop_client()
 
 
 class Chat:
@@ -200,7 +193,8 @@ def test_voice_signature_flow_and_tamper_evidence():
     assert client.get("/api/signatures/verify").json()["data"]["valid"] is True
 
     # Someone edits the signed amount directly in the database -> chain breaks
-    conn = get_db_connection()
+    with shop_context(DEMO_SHOP):
+        conn = get_db_connection()  # the connection keeps pointing at this shop's file
     conn.execute("UPDATE ledger_entries SET amount = 70 WHERE id = ?", (req["entry_id"],))
     conn.commit()
     result = client.get("/api/signatures/verify").json()["data"]

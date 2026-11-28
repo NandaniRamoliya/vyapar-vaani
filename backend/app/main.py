@@ -8,17 +8,16 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from app.config import settings
-from app.database.db import init_db
-from app.routers import voice, orders, customers, reminders, dashboard, settings_router, khata, signatures
+from app.database.platform import init_platform
+from app.routers import voice, orders, customers, reminders, dashboard, settings_router, khata, signatures, auth, admin
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize SQLite database and seed initial data
-    init_db()
+    init_platform()  # platform DB + every shop's own DB (demo shops on first start)
     yield
 
-# Also ensure DB is initialized on module import
-init_db()
+# Also when imported directly (tests, `python -c`), so the API works without the lifespan
+init_platform()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -31,12 +30,14 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=False,  # bearer tokens, no cookies: works with "*" and any Pages origin
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Mount API Routers
+app.include_router(auth.router)
+app.include_router(admin.router)
 app.include_router(dashboard.router)
 app.include_router(voice.router)
 app.include_router(orders.router)
@@ -52,7 +53,6 @@ def health_check():
         "status": "healthy",
         "app": settings.PROJECT_NAME,
         "version": settings.VERSION,
-        "mock_mode": settings.MOCK_MODE,
         "zero_key_ready": True
     }
 

@@ -1,3 +1,5 @@
+from fastapi import Depends
+from app.security import shop_user
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -6,7 +8,7 @@ from app.models.schemas import Order, OrderCreate, ApiResponse
 from app.database.db import get_db_connection
 from app.services import khata
 
-router = APIRouter(prefix="/api/orders", tags=["Orders"])
+router = APIRouter(prefix="/api/orders", tags=["Orders"], dependencies=[Depends(shop_user)])
 
 @router.get("", response_model=ApiResponse)
 def list_orders(status: Optional[str] = None, search: Optional[str] = None):

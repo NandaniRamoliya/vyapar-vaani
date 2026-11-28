@@ -99,6 +99,8 @@ export interface VoiceProcessResult {
   status: string;
   executed_result?: any;
   context?: AgentContext;
+  reply_language?: LanguageCode;
+  detected_language?: LanguageCode | null;
 }
 
 /** Conversation memory the phone keeps and sends with every utterance. */

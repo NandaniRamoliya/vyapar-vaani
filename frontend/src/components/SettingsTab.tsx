@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Languages, BellRing, ShieldCheck, ShieldAlert, Lock, Smartphone, Trash2, Check } from 'lucide-react';
+import { Languages, BellRing, ShieldCheck, ShieldAlert, Lock, Smartphone, Trash2, Check, LogOut, KeyRound, UserRound } from 'lucide-react';
 import { ChainCheck, LanguageCode } from '../types';
 import { api } from '../services/api';
-import { LANGS, LANG_ORDER } from '../utils/lang';
+import { LANGS, LANG_ORDER, getAutoLanguage, setAutoLanguage } from '../utils/lang';
+import { changePassword, getSession, logout } from '../services/auth';
 import { useT } from '../utils/i18n';
 import { askNotificationPermission } from '../utils/speech';
 
@@ -17,10 +18,41 @@ export const SettingsTab: React.FC<Props> = ({ language, onLanguageChange }) => 
   const [perm, setPerm] = useState<string>(() => ('Notification' in window ? Notification.permission : 'unsupported'));
   const [chain, setChain] = useState<ChainCheck | null>(null);
   const [cleared, setCleared] = useState(false);
+  const [auto, setAuto] = useState(getAutoLanguage);
+  const [pw, setPw] = useState({ old: '', next: '' });
+  const [pwMsg, setPwMsg] = useState<string | null>(null);
+  const session = getSession();
 
   const card = 'bg-white rounded-3xl border border-slate-200 p-5 shadow-xs';
   return (
     <div className="max-w-2xl mx-auto space-y-4">
+      <section className={card}>
+        <h3 className="font-black text-slate-900 flex items-center gap-2"><UserRound className="w-5 h-5 text-indigo-600" /> {tr('set.account')}</h3>
+        <p className="mt-1 text-sm text-slate-600">
+          <b>{session?.shop?.name}</b>{session?.shop?.city ? ` · ${session.shop.city}` : ''} · {session?.user.login}
+        </p>
+        <form
+          className="mt-3 grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            try {
+              await changePassword(pw.old, pw.next);
+              setPwMsg(tr('set.pwChanged'));
+              setPw({ old: '', next: '' });
+            } catch (err: any) {
+              setPwMsg(err.message);
+            }
+          }}
+        >
+          <input type="password" required placeholder={tr('set.oldPw')} value={pw.old} onChange={(e) => setPw({ ...pw, old: e.target.value })} className="h-11 px-3 rounded-xl border border-slate-300 text-sm" />
+          <input type="password" required minLength={6} placeholder={tr('set.newPw')} value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} className="h-11 px-3 rounded-xl border border-slate-300 text-sm" />
+          <button className="h-11 px-4 rounded-xl bg-slate-900 text-white text-sm font-bold flex items-center justify-center gap-1.5 cursor-pointer"><KeyRound className="w-4 h-4" /> {tr('set.changePw')}</button>
+        </form>
+        {pwMsg && <p className="mt-2 text-sm text-slate-600">{pwMsg}</p>}
+        <button onClick={logout} className="mt-3 h-11 px-4 rounded-xl border border-rose-200 text-rose-700 font-bold flex items-center gap-2 cursor-pointer">
+          <LogOut className="w-4 h-4" /> {tr('set.logout')}
+        </button>
+      </section>
       <section className={card}>
         <h3 className="font-black text-slate-900 flex items-center gap-2"><Languages className="w-5 h-5 text-indigo-600" /> {tr('set.language')}</h3>
         <p className="mt-1 text-sm text-slate-500">{tr('set.languageText')}</p>
@@ -31,6 +63,24 @@ export const SettingsTab: React.FC<Props> = ({ language, onLanguageChange }) => 
             </button>
           ))}
         </div>
+      </section>
+
+      <section className={card}>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={auto}
+            onChange={(e) => {
+              setAuto(e.target.checked);
+              setAutoLanguage(e.target.checked);
+            }}
+            className="mt-1 w-5 h-5 accent-indigo-600"
+          />
+          <span>
+            <span className="block font-black text-slate-900">{tr('set.autoLang')}</span>
+            <span className="block mt-1 text-sm text-slate-500">{tr('set.autoLangText')}</span>
+          </span>
+        </label>
       </section>
 
       <section className={card}>

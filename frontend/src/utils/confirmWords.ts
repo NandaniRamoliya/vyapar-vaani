@@ -10,12 +10,16 @@ const YES = [
   'sahi', 'sahi hai', 'kar do', 'kardo', 'karo', 'bilkul', 'chalega', 'ho gaya', 'barabar',
   'हाँ', 'हां', 'हा', 'जी', 'जी हाँ', 'ठीक', 'ठीक है', 'सही', 'सही है', 'कर दो', 'लिख दो', 'सेव करो', 'बिल्कुल', 'चलेगा',
   'બરાબર', 'હા', 'હાં', 'હા જી', 'ઠીક', 'ઠીક છે', 'સાચું', 'કરી દો', 'લખી દો', 'સેવ કરો', 'ચાલશે', 'હો',
+  // English "yes / ok / confirm / save" as Hindi and Gujarati recognisers write them
+  'यस', 'येस', 'ओके', 'ओक', 'कन्फर्म', 'सेव', 'श्योर', 'યસ', 'ઓકે', 'કન્ફર્મ', 'સેવ', 'શ્યોર',
 ];
 const NO = [
   'no', 'nope', 'nah', 'cancel', 'stop', 'wrong', 'incorrect', 'dont', "don't", 'do not', 'not',
   'nahi', 'nahin', 'nai', 'mat', 'mat karo', 'galat', 'cancel karo', 'rehne do', 'rehne de',
   'नहीं', 'नही', 'मत', 'मत करो', 'गलत', 'रद्द', 'रहने दो', 'रुको',
   'ના', 'નહીં', 'નહિ', 'ખોટું', 'રદ', 'રહેવા દો', 'રોકો', 'નથી',
+  // English "no / cancel / wrong" in Indic script
+  'नो', 'कैंसल', 'केंसल', 'रॉन्ग', 'કેન્સલ', 'રોંગ',
 ];
 
 function matches(text: string, words: string[]): boolean {

@@ -1,0 +1,25 @@
+# One-click server on Render (https://render.com → New → Blueprint → pick this repo).
+# The same Docker image serves the API *and* the web app, so this URL works on its own too.
+services:
+  - type: web
+    name: vyapar-vaani
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATA_DIR
+        value: /data
+      - key: ADMIN_LOGIN
+        value: admin
+      - key: ADMIN_PASSWORD
+        generateValue: true        # shown in the Render dashboard → Environment
+      - key: SEED_DEMO
+        value: "true"              # demo shops for judges; set "false" for real shops
+      - key: CORS_ORIGINS
+        value: https://nandaniramoliya.github.io
+    # Free instances lose files on every redeploy/restart. For real shops, add a persistent disk
+    # (paid plan) mounted at /data:
+    # disk:
+    #   name: vaani-data
+    #   mountPath: /data
+    #   sizeGB: 1

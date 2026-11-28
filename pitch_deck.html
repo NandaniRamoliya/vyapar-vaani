@@ -52,6 +52,8 @@
   .tight .card { padding: 4.5mm 6mm; }
   .tight h3 { font-size: 13pt; margin-bottom: 1.5mm; }
   .tight .step p { font-size: 10.5pt; }
+  .tight table { font-size: 10pt; }
+  .tight td { padding: 1.8mm 3mm; }
 </style>
 </head>
 <body>
@@ -100,10 +102,10 @@
   </div>
   <div class="grid3" style="margin-top:5mm">
     <div class="card brand"><h3>Talks like a person</h3><p>Asks follow-up questions, remembers “uska / उसका / એનું”, understands “Rahul <b>ne</b> diye” (he paid) vs “Rahul <b>ko</b> diye” (you gave), lets you interrupt, undoes mistakes by voice, gives the day’s hisaab and who to chase tomorrow.</p></div>
-    <div class="card good"><h3>Bharat languages</h3><p>English, हिन्दी, ગુજરાતી and Hinglish. Names in any script match the book (राहुल / રાહુલે → Rahul Sharma). Spoken numbers work: पांच हजार, dedh lakh, સાડા ત્રણ હજાર. Replies and WhatsApp reminders come in the chosen language.</p></div>
-    <div class="card"><h3>Phone-first, zero keys</h3><p>Big thumb-reach mic, installs as an app, hands-free yes/no. Everything (language engine, agent, signatures) runs on our own code. No paid AI API and no secret keys. One Docker command to run.</p></div>
+    <div class="card good"><h3>Bharat languages, even mixed</h3><p>English, हिन्दी, ગુજરાતી, Hinglish, or all three in one sentence. Vaani detects the language you spoke (even English written as “आई वांट टू…” by a Hindi recogniser), replies in it and switches the app. Names in any script match the book (राहुल / રાહુલે → Rahul Sharma).</p></div>
+    <div class="card"><h3>Phone-first platform, zero keys</h3><p>Thumb-reach mic, installs as an app, reminders that ring and notify. One server hosts many shops: each has its own login and its own database, and an admin console adds and manages shops. No paid AI API, no secret keys, one Docker command.</p></div>
   </div>
-  <div class="foot"><span>Working today: 57 automated tests, end-to-end voice flow tested on an emulated Android phone and in Docker</span><span>3</span></div>
+  <div class="foot"><span>Working today: 143 automated tests · multi-shop logins with isolated data · tested end to end on an emulated Android phone and in Docker</span><span>3</span></div>
 </section>
 
 <!-- 4. USERS -->
@@ -137,7 +139,7 @@
 </section>
 
 <!-- 5. DEPENDENCIES -->
-<section class="slide">
+<section class="slide tight">
   <p class="kicker">3 · What it depends on</p>
   <h2>No paid AI model and no API keys. Every outside piece has a fallback.</h2>
   <table>
@@ -147,7 +149,7 @@
     <tr><td>Language understanding</td><td>Intents, names, amounts, follow-up questions, replies in three languages</td><td>Free (our own Python code)</td><td>No outside dependency. An LLM could be added later as an optional upgrade, never as a requirement.</td></tr>
     <tr><td>Voice signatures</td><td>Recording (MediaRecorder), SHA-256 hash chain, SQLite storage</td><td>Free</td><td>No outside dependency. Standard cryptography, works offline.</td></tr>
     <tr><td>WhatsApp</td><td>Reminders, receipts, sharing the voice proof (wa.me links and the phone’s share sheet)</td><td>Free</td><td>Falls back to SMS or copy-paste. We do not use the paid WhatsApp Business API.</td></tr>
-    <tr><td>Hosting</td><td>One Docker container (FastAPI and the web app) plus a SQLite file</td><td>One small server</td><td>Portable to any cloud or a shop’s own PC. Move to Postgres when shops need multi-device sync.</td></tr>
+    <tr><td>Hosting</td><td>One Docker container (FastAPI and the web app); one SQLite file per shop; web app also on GitHub Pages</td><td>One small server</td><td>Portable to any cloud or a shop’s own PC. Shops are separate files, so they can be moved or split across servers.</td></tr>
   </table>
   <div class="foot"><span>Biggest single risk: speech quality on low-end phones. Mitigation: typing fallback today, on-device models next.</span><span>5</span></div>
 </section>

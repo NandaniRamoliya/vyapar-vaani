@@ -2,6 +2,7 @@ import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } f
 import { Pause, Play, ShieldCheck } from 'lucide-react';
 import { VoiceSignature } from '../types';
 import { formatINR } from '../utils/whatsapp';
+import { privateObjectUrl } from '../services/auth';
 
 export interface ProofPlayerHandle {
   play: () => Promise<void>;
@@ -23,11 +24,31 @@ export const ProofPlayer = forwardRef<ProofPlayerHandle, Props>(({ signature, co
   const [progress, setProgress] = useState(0);
   // Recordings from MediaRecorder often report Infinity until fully loaded; use the stored length.
   const knownSeconds = (signature.duration_ms || 0) / 1000;
+  // Recordings are private to the shop, so they are fetched with the login token
+  const [src, setSrc] = useState<string | undefined>();
+  useEffect(() => {
+    let url: string | undefined;
+    let alive = true;
+    privateObjectUrl(signature.audio_url)
+      .then((u) => {
+        url = u;
+        if (alive) setSrc(u);
+        else URL.revokeObjectURL(u);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [signature.audio_url]);
 
   useImperativeHandle(ref, () => ({
     play: async () => {
       try {
-        await audioRef.current?.play();
+        const a = audioRef.current;
+        if (!a) return;
+        if (!a.src) await new Promise((r) => setTimeout(r, 400)); // recording still loading
+        await a.play();
       } catch (_e) {
         /* autoplay blocked: the button is still there */
       }
@@ -72,7 +93,7 @@ export const ProofPlayer = forwardRef<ProofPlayerHandle, Props>(({ signature, co
 
   return (
     <div className={`flex items-center gap-3 rounded-2xl bg-emerald-50 border border-emerald-200 ${compact ? 'p-2' : 'p-3'}`}>
-      <audio ref={audioRef} src={signature.audio_url} preload="metadata" />
+      <audio ref={audioRef} src={src} preload="metadata" />
       <button
         onClick={toggle}
         aria-label={playing ? 'Pause voice proof' : 'Play voice proof'}

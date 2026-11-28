@@ -1,3 +1,5 @@
+from fastapi import Depends
+from app.security import shop_user
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -5,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from app.models.schemas import Customer, CustomerCreate, ApiResponse
 from app.database.db import get_db_connection
 
-router = APIRouter(prefix="/api/customers", tags=["Customers"])
+router = APIRouter(prefix="/api/customers", tags=["Customers"], dependencies=[Depends(shop_user)])
 
 @router.get("", response_model=ApiResponse)
 def list_customers(search: Optional[str] = None):

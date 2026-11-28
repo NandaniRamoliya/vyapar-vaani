@@ -1,3 +1,5 @@
+from fastapi import Depends
+from app.security import shop_user
 from typing import Optional
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
@@ -5,7 +7,7 @@ from app.models.schemas import ApiResponse
 from app.database.db import get_db_connection
 from app.services import signatures
 
-router = APIRouter(tags=["Voice Signatures"])
+router = APIRouter(tags=["Voice Signatures"], dependencies=[Depends(shop_user)])
 
 
 @router.post("/api/khata/entries/{entry_id}/signature", response_model=ApiResponse)

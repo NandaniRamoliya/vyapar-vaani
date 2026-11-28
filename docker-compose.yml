@@ -5,8 +5,13 @@ services:
     build: .
     ports:
       - "3000:3000"
+    environment:
+      # Optional overrides; the app starts fine without any of these (see .env.example)
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin@123}
+      SEED_DEMO: ${SEED_DEMO:-true}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
     volumes:
-      - vaani-data:/data   # khata, orders and voice signatures survive restarts
+      - vaani-data:/data   # every shop's database + accounts survive restarts
     restart: unless-stopped
 
 volumes:

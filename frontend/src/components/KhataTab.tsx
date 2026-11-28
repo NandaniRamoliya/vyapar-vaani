@@ -38,7 +38,13 @@ export const KhataTab: React.FC<KhataTabProps> = ({ onOpenVoice, onRefresh, refr
   const tr = useT(language);
   const balanceLabel = (b: number) => (b > 0 ? tr('common.owes', { amt: '' }).trim() : b < 0 ? tr('common.advance', { amt: '' }).trim() : tr('common.settled'));
   const dueAgeLabel = (days: number, neverPaid?: boolean) =>
-    neverPaid ? tr('common.unpaidDays', { n: days }) : days === 0 ? tr('common.paidToday') : tr('common.daysSincePay', { n: days });
+    neverPaid
+      ? days === 0
+        ? tr('common.udharToday')
+        : tr('common.unpaidDays', { n: days })
+      : days === 0
+        ? tr('common.paidToday')
+        : tr('common.daysSincePay', { n: days });
   const [summary, setSummary] = useState<KhataSummary | null>(null);
   const [chain, setChain] = useState<ChainCheck | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);

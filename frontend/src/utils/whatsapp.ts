@@ -1,6 +1,11 @@
 import { LanguageCode } from '../types';
+import { apiFetch } from '../services/auth';
 
-export const SHOP_NAME = 'Nandani Textiles';
+// Set from the logged-in shop (live binding: importers always see the current name)
+export let SHOP_NAME = 'VyaparVaani';
+export function setShopName(name: string | undefined) {
+  SHOP_NAME = name || 'VyaparVaani';
+}
 
 export function formatINR(amount: number): string {
   return `₹${Math.round(Math.abs(amount)).toLocaleString('en-IN')}`;
@@ -77,7 +82,7 @@ export async function shareVoiceProof(opts: {
 }): Promise<'shared' | 'text'> {
   const text = proofMessage(opts.customerName, opts.amount, opts.date, opts.lang);
   try {
-    const blob = await (await fetch(opts.audioUrl)).blob();
+    const blob = await (await apiFetch(opts.audioUrl)).blob();
     const ext = blob.type.includes('mp4') ? 'm4a' : blob.type.includes('ogg') ? 'ogg' : 'webm';
     const file = new File([blob], `${first(opts.customerName)}-voice-proof.${ext}`, { type: blob.type });
     const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };

@@ -26,7 +26,7 @@ import { useVoice } from '../hooks/useVoice';
 import { useRecorder } from '../hooks/useRecorder';
 import { api } from '../services/api';
 import { classifyConfirmation } from '../utils/confirmWords';
-import { LANGS, LANG_ORDER } from '../utils/lang';
+import { LANGS, LANG_ORDER, getAutoLanguage } from '../utils/lang';
 import { t } from '../utils/i18n';
 import { askNotificationPermission } from '../utils/speech';
 import { playSoundboxChime } from '../utils/soundboxChime';
@@ -64,7 +64,7 @@ interface Msg {
   id: string;
   from: 'me' | 'vaani';
   text: string;
-  kind?: 'confirm' | 'receipt' | 'khata' | 'dues' | 'hisaab' | 'proof' | 'signature' | 'alerts';
+  kind?: 'confirm' | 'receipt' | 'khata' | 'dues' | 'hisaab' | 'proof' | 'signature' | 'alerts' | 'note';
   pending?: VoiceProcessResult;
   khata?: KhataInfo;
   receipt?: Record<string, any>;
@@ -242,7 +242,7 @@ export const VoiceAgent: React.FC<Props> = ({ language, onLanguageChange, onRefr
     setThinking(true);
     const started = Date.now();
     try {
-      const res = await api.processVoice(text, settingsRef.current.language, false, ctxRef.current);
+      const res = await api.processVoice(text, settingsRef.current.language, false, ctxRef.current, getAutoLanguage());
       await sleep(Math.max(0, 420 - (Date.now() - started))); // a natural beat before answering
       setThinking(false);
       ctxRef.current = res.context || {};
@@ -260,6 +260,13 @@ export const VoiceAgent: React.FC<Props> = ({ language, onLanguageChange, onRefr
 
   const render = (res: VoiceProcessResult) => {
     const d = res.extracted_data || {};
+
+    // Spoke another language? Answer in it and switch the app (and the microphone) to it.
+    if (res.reply_language && res.reply_language !== settingsRef.current.language) {
+      settingsRef.current = { ...settingsRef.current, language: res.reply_language };
+      onLanguageChange(res.reply_language);
+      push({ from: 'vaani', text: `🌐 ${t(res.reply_language, 'voice.switched')}`, kind: 'note' });
+    }
 
     if (res.confirmation_required) {
       pendingRef.current = res;
@@ -870,7 +877,10 @@ export const VoiceAgent: React.FC<Props> = ({ language, onLanguageChange, onRefr
         <div className="max-w-2xl mx-auto space-y-3">
           {messages.map((m) => (
             <div key={m.id} className={`flex flex-col ${m.from === 'me' ? 'items-end' : 'items-start'}`}>
-              {m.kind !== 'signature' && (
+              {m.kind === 'note' && (
+                <div className="self-center text-[11px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-full px-3 py-1">{m.text}</div>
+              )}
+              {m.kind !== 'signature' && m.kind !== 'note' && (
                 <div
                   className={`max-w-[85%] px-4 py-2.5 rounded-3xl text-[15px] leading-snug ${
                     m.from === 'me' ? 'bg-indigo-600 text-white rounded-br-md' : 'bg-white text-slate-800 rounded-bl-md shadow-sm border border-slate-100'
@@ -879,7 +889,7 @@ export const VoiceAgent: React.FC<Props> = ({ language, onLanguageChange, onRefr
                   {m.text}
                 </div>
               )}
-              {m.kind && <div className="w-full max-w-[min(100%,26rem)]">{renderCard(m)}</div>}
+              {m.kind && m.kind !== 'note' && <div className="w-full max-w-[min(100%,26rem)]">{renderCard(m)}</div>}
             </div>
           ))}
 

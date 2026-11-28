@@ -63,6 +63,7 @@ class ProcessVoiceRequest(BaseModel):
     transcript: str = Field(..., description="Speech-to-text transcript from user")
     language: str = Field(default="en-IN", description="Language code: en-IN, hi-IN, gu-IN")
     auto_execute: bool = Field(default=False, description="Execute action immediately without extra confirmation step")
+    auto_language: bool = Field(default=True, description="Reply in the language the person spoke, even if another one is selected")
     client_time: Optional[str] = Field(default=None, description="Phone's local time (ISO), so 'in 2 minutes' means the user's 2 minutes")
     context: Optional[dict[str, Any]] = Field(default=None, description="Conversation memory kept by the client (last customer, pending question, last action)")
 

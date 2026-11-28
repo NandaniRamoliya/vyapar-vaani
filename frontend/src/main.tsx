@@ -5,7 +5,7 @@ import App from './App.tsx'
 
 // Service worker = phone notifications for reminders (no offline caching).
 if ('serviceWorker' in navigator && window.isSecureContext) {
-  navigator.serviceWorker.register('/sw.js').catch(() => {})
+  navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {})
 }
 
 createRoot(document.getElementById('root')!).render(

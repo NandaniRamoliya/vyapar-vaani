@@ -14,6 +14,7 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PORT=3000 \
+    DATA_DIR=/data \
     DATABASE_PATH=/data/vyapar_vaani.db \
     STATIC_DIR=/app/static
 COPY backend/requirements.txt ./

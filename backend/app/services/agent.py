@@ -16,6 +16,7 @@ from typing import Any, Optional
 
 from app.database.db import get_db_connection
 from app.services import khata, signatures
+from app.services.language import detect_language, latinize, match_script
 from app.services.indic import best_name_match, has_indic, name_candidates, normalize_numbers, to_display_name
 from app.services.nlp_parser import NLPParser, _contains_any
 from app.services.replies import first_name, human_date, join_names, money, say
@@ -74,10 +75,13 @@ class VoiceAgent:
 
     @classmethod
     def handle(cls, transcript: str, language: str = "en-IN", context: Optional[dict] = None,
-               client_time: Optional[str] = None) -> dict[str, Any]:
+               client_time: Optional[str] = None, auto_language: bool = True) -> dict[str, Any]:
         raw = transcript.strip()
         cls._now = cls._parse_client_time(client_time)
-        text = normalize_numbers(raw)
+        # Reply in the language the person actually spoke (English said to a Hindi recogniser, etc.)
+        detected = detect_language(raw) if auto_language else None
+        language = detected or language
+        text = normalize_numbers(latinize(match_script(raw, detected)))
         ctx = dict(context or {})
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -89,6 +93,8 @@ class VoiceAgent:
         finally:
             conn.close()
         result["context"] = ctx
+        result["reply_language"] = language
+        result["detected_language"] = detected
         return result
 
     _now: Optional[datetime] = None

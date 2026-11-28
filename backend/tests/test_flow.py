@@ -3,24 +3,16 @@ import os
 from fastapi.testclient import TestClient
 
 # Use separate test db
-os.environ["DATABASE_PATH"] = "test_vyapar.db"
 
-from app.main import app
-from app.database.db import init_db
+from app.main import app  # noqa: F401
+from conftest import DEMO_SHOP, reset_demo_shop, shop_client
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_test_db():
-    if os.path.exists("test_vyapar.db"):
-        os.remove("test_vyapar.db")
-    init_db()
+    reset_demo_shop()
     yield
-    if os.path.exists("test_vyapar.db"):
-        try:
-            os.remove("test_vyapar.db")
-        except:
-            pass
 
-client = TestClient(app)
+client = shop_client()
 
 def test_health_check():
     response = client.get("/api/health")

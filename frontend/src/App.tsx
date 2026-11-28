@@ -14,10 +14,30 @@ import { KhataTab } from './components/KhataTab';
 import { Order, Customer, Reminder, VoiceInteraction, LanguageCode } from './types';
 import { api } from './services/api';
 import { loadLanguage, saveLanguage } from './utils/lang';
+import { LoginScreen } from './components/LoginScreen';
+import { AdminApp } from './components/AdminApp';
+import { Session, getSession, onSessionChange } from './services/auth';
+import { setShopName } from './utils/whatsapp';
 
+/** Login gate: no session -> login screen; admin -> admin console; shopkeeper -> their own shop. */
 export function App() {
-  const [currentTab, setCurrentTab] = useState('voice_os');
+  const [session, setSessionState] = useState<Session | null>(getSession);
   const [language, setLanguageState] = useState<LanguageCode>(loadLanguage);
+  useEffect(() => onSessionChange(setSessionState), []);
+  // Before rendering anything that shows or sends the shop name (bills, reminders, Vaani's header)
+  setShopName(session?.shop?.name);
+  const setLanguage = (lang: LanguageCode) => {
+    setLanguageState(lang);
+    saveLanguage(lang);
+  };
+
+  if (!session) return <LoginScreen language={language} onLanguageChange={setLanguage} />;
+  if (session.user.role === 'admin') return <AdminApp />;
+  return <ShopApp key={session.shop?.id} language={language} setLanguage={setLanguage} />;
+}
+
+function ShopApp({ language, setLanguage }: { language: LanguageCode; setLanguage: (l: LanguageCode) => void }) {
+  const [currentTab, setCurrentTab] = useState('voice_os');
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -26,11 +46,6 @@ export function App() {
   const [loading, setLoading] = useState(true);
   // Bumped on every data reload so the Khata tab re-fetches its own ledger data
   const [refreshKey, setRefreshKey] = useState(0);
-
-  const setLanguage = (lang: LanguageCode) => {
-    setLanguageState(lang);
-    saveLanguage(lang);
-  };
 
   const loadAllData = useCallback(async () => {
     try {

@@ -2,28 +2,20 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
-os.environ["DATABASE_PATH"] = "test_vyapar.db"
 
-from app.main import app
-from app.database.db import init_db
+from app.main import app  # noqa: F401
+from conftest import DEMO_SHOP, reset_demo_shop, shop_client
 from app.services.nlp_parser import NLPParser
 from app.services.khata import format_inr
 
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_test_db():
-    if os.path.exists("test_vyapar.db"):
-        os.remove("test_vyapar.db")
-    init_db()
+    reset_demo_shop()
     yield
-    if os.path.exists("test_vyapar.db"):
-        try:
-            os.remove("test_vyapar.db")
-        except OSError:
-            pass
 
 
-client = TestClient(app)
+client = shop_client()
 
 
 def _balance_of(name: str) -> float:

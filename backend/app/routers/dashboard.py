@@ -1,3 +1,5 @@
+from fastapi import Depends
+from app.security import shop_user
 from datetime import datetime
 from typing import Optional
 
@@ -8,7 +10,7 @@ from app.models.schemas import ApiResponse
 from app.services import khata, reminders as rem
 from app.services.business_logic import BusinessService
 
-router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
+router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"], dependencies=[Depends(shop_user)])
 
 
 @router.get("/stats", response_model=ApiResponse)

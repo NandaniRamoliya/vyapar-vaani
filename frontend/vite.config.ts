@@ -18,6 +18,8 @@ export default defineConfig(async ({ mode }) => {
 
   return {
     plugins,
+    // GitHub Pages serves the app from /<repo-name>/ ; the Pages workflow sets VITE_BASE for that
+    base: process.env.VITE_BASE || '/',
     server: {
       port: 3000,
       host: mode === 'phone' ? true : undefined,

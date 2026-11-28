@@ -1,9 +1,11 @@
+from fastapi import Depends
+from app.security import shop_user
 from fastapi import APIRouter, HTTPException
 from app.models.schemas import ApiResponse, LedgerEntryCreate
 from app.database.db import get_db_connection
 from app.services import khata, signatures
 
-router = APIRouter(prefix="/api/khata", tags=["Khata / Udhar Ledger"])
+router = APIRouter(prefix="/api/khata", tags=["Khata / Udhar Ledger"], dependencies=[Depends(shop_user)])
 
 
 @router.get("", response_model=ApiResponse)

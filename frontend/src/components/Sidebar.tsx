@@ -9,10 +9,12 @@ import {
   Settings as SettingsIcon,
   Sparkles,
   Store,
-  BookOpen
+  BookOpen,
+  LogOut
 } from 'lucide-react';
 import { LanguageCode } from '../types';
 import { useT } from '../utils/i18n';
+import { getSession, logout } from '../services/auth';
 
 interface SidebarProps {
   currentTab: string;
@@ -31,7 +33,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const labels = {
     voiceOS: tr('nav.voice'), overview: tr('nav.today'), orders: tr('nav.orders'), customers: tr('nav.customers'),
     khata: tr('nav.khata'), reminders: tr('nav.reminders'), history: tr('nav.history'), settings: tr('nav.settings'),
-    speakBtn: tr('nav.talk'), shopName: tr('shop.name'), shopCity: tr('shop.city'),
+    speakBtn: tr('nav.talk'), shopName: getSession()?.shop?.name || '', shopCity: getSession()?.shop?.city || '',
   };
 
   const navItems = [
@@ -112,6 +114,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <p className="text-xs font-semibold text-slate-200 truncate">{labels.shopName}</p>
             <p className="text-[11px] text-slate-400 truncate">{labels.shopCity}</p>
           </div>
+          <button onClick={logout} title={tr('set.logout')} aria-label={tr('set.logout')} className="ml-auto w-8 h-8 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 flex items-center justify-center cursor-pointer">
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </aside>

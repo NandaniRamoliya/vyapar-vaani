@@ -35,7 +35,8 @@ export async function notify(title: string, body: string, tag: string) {
   try {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     const reg = await navigator.serviceWorker?.getRegistration();
-    const opts = { body, tag, icon: '/icon-192.png', badge: '/icon-192.png', requireInteraction: true } as NotificationOptions;
+    const icon = `${import.meta.env.BASE_URL}icon-192.png`;
+    const opts = { body, tag, icon, badge: icon, requireInteraction: true } as NotificationOptions;
     if (reg) await reg.showNotification(title, opts);
     else new Notification(title, opts);
   } catch (_e) {

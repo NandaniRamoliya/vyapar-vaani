@@ -5,28 +5,20 @@ from datetime import datetime, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
-os.environ["DATABASE_PATH"] = "test_vyapar.db"
 
-from app.main import app
-from app.database.db import init_db
+from app.main import app  # noqa: F401
+from conftest import DEMO_SHOP, reset_demo_shop, shop_client
 from app.services.nlp_parser import NLPParser
 from app.services.when import parse_when
 
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_test_db():
-    if os.path.exists("test_vyapar.db"):
-        os.remove("test_vyapar.db")
-    init_db()
+    reset_demo_shop()
     yield
-    if os.path.exists("test_vyapar.db"):
-        try:
-            os.remove("test_vyapar.db")
-        except OSError:
-            pass
 
 
-client = TestClient(app)
+client = shop_client()
 NOW = datetime(2026, 11, 28, 18, 0)
 
 
@@ -148,3 +140,40 @@ def test_voice_reminder_uses_phone_clock_and_becomes_due():
     client.patch(f"/api/reminders/{rid}/toggle")       # done
     due = client.get("/api/reminders/due", params={"now": "2026-11-29T00:00:00"}).json()["data"]
     assert rid not in [r["id"] for r in due]
+
+
+# ---------------------------------------------------------------- every example in docs/USER_GUIDE.md
+@pytest.mark.parametrize("text,lang,intent", [
+    ("Rahul ko 5000 udhar likho", "en-IN", "add_udhar"), ("राहुल को 5000 उधार लिखो", "hi-IN", "add_udhar"),
+    ("રાહુલને 5000 ઉધાર લખો", "gu-IN", "add_udhar"),
+    ("Rahul paid 3000", "en-IN", "record_payment"), ("Rahul deposited 3000", "en-IN", "record_payment"),
+    ("राहुल ने 3000 जमा किए", "hi-IN", "record_payment"), ("રાહુલે 3000 જમા કર્યા", "gu-IN", "record_payment"),
+    ("Rahul ne pura hisaab clear kar diya", "en-IN", "record_payment"),
+    ("राहुल ने पूरा हिसाब चुकता कर दिया", "hi-IN", "record_payment"), ("રાહુલે પૂરો હિસાબ ચોખ્ખો કર્યો", "gu-IN", "record_payment"),
+    ("How much does Rahul owe me?", "en-IN", "check_balance"), ("राहुल का कितना बाकी है?", "hi-IN", "check_balance"),
+    ("રાહુલના કેટલા બાકી છે?", "gu-IN", "check_balance"),
+    ("Who owes me money?", "en-IN", "list_dues"), ("किसका कितना बाकी है?", "hi-IN", "list_dues"), ("કોના કેટલા બાકી છે?", "gu-IN", "list_dues"),
+    ("Aaj ka hisaab", "en-IN", "show_business_summary"), ("आज का हिसाब", "hi-IN", "show_business_summary"),
+    ("આજનો હિસાબ", "gu-IN", "show_business_summary"),
+    ("Add an order for Priya, 10 sarees, 12000 on udhar", "en-IN", "create_order"),
+    ("प्रिया के लिए 10 साड़ी का ऑर्डर, कुल 12000", "hi-IN", "create_order"),
+    ("પ્રિયા માટે 10 સાડીનો ઓર્ડર, કુલ 12000", "gu-IN", "create_order"),
+    ("Add new customer Kavita", "en-IN", "add_customer"), ("नया ग्राहक जोड़ो, नाम कविता", "hi-IN", "add_customer"),
+    ("નવો ગ્રાહક ઉમેરો, નામ કવિતા", "gu-IN", "add_customer"),
+    ("Remind me in 10 minutes to call Rahul", "en-IN", "create_reminder"),
+    ("कल सुबह 10 बजे राहुल को फ़ोन करना याद दिलाना", "hi-IN", "create_reminder"),
+    ("કાલે સાંજે 5 વાગ્યે પ્રિયાને ફોન કરવાનું યાદ અપાવો", "gu-IN", "create_reminder"),
+    ("Rahul ka saboot sunao", "en-IN", "play_proof"), ("राहुल का सबूत सुनाओ", "hi-IN", "play_proof"),
+    ("રાહુલનો પુરાવો સંભળાવો", "gu-IN", "play_proof"),
+    ("Galti ho gayi, hata do", "en-IN", "undo_last"), ("गलती हो गई, हटा दो", "hi-IN", "undo_last"),
+    ("ભૂલ થઈ ગઈ, કાઢી નાખો", "gu-IN", "undo_last"),
+])
+def test_user_guide_examples(text, lang, intent):
+    d = client.post("/api/voice/process", json={"transcript": text, "language": lang}).json()["data"]
+    assert d["intent"] == intent
+    assert d["reply_language"] == lang
+
+
+def test_order_totals_without_the_word_rupees():
+    d = NLPParser.parse("Add an order for Priya, 10 sarees, 12000 on udhar")["extracted_data"]
+    assert d["quantity"] == 10 and d["total_amount"] == 12000 and d["payment_mode"] == "udhar"

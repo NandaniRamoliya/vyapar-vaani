@@ -208,6 +208,10 @@ class NLPParser:
             return "create_order"
         if any(w in raw for w in ["ऑर्डर जोड़ो", "ऑर्डर लिखो", "ऑर्डर बनाओ", "का ऑर्डर", "ઓર્ડર ઉમેરો", "ઓર્ડર લખો", "ઓર્ડર કરો", "નો ઓર્ડર"]):
             return "create_order"
+        # "प्रिया के लिए 10 साड़ी का order, कुल 12000" (the word "order" may arrive in any script)
+        if re.search(r"(?<![a-z])order(?![a-z])", lower) and re.search(r"\d", lower) \
+                and not _contains_any(lower, raw, REMINDER_WORDS):
+            return "create_order"
 
         # Check Reminder Creation
         if _contains_any(lower, raw, REMINDER_WORDS) and not _contains_any(lower, raw, ["show reminders", "list reminders"]):
@@ -283,7 +287,7 @@ class NLPParser:
 
         # Extract Total Amount
         total_amount = None
-        amt_match = re.search(r"(?:₹|rs\.?|inr|total|amount|for|કુલ|રૂપિયા|रुपये|rupees)\s*[:=]?\s*([0-9]+(?:,[0-9]+)*)", raw, re.IGNORECASE)
+        amt_match = re.search(r"(?:₹|rs\.?|inr|total|amount|for|કુલ|कुल|રૂપિયા|रुपये|rupees)\s*[:=]?\s*([0-9]+(?:,[0-9]+)*)", raw, re.IGNORECASE)
         if not amt_match:
             amt_match = re.search(r"([0-9]+(?:,[0-9]+)*)\s*(?:rupees|rs|rupiya|रुपये|રૂપિયા|/-)", raw, re.IGNORECASE)
         if amt_match:
@@ -294,7 +298,7 @@ class NLPParser:
 
         # Extract Quantity
         quantity = 1
-        qty_match = re.search(r"(\b\d+\b)\s*(?:shirts|pieces|pcs|sarees|kurtis|jeans|units|t-shirts|meter|items|શર્ટ|સાડી|कुर्ती|शर्ट्स)", raw, re.IGNORECASE)
+        qty_match = re.search(r"(\b\d+\b)\s*(?:shirts|pieces|pcs|sarees|kurtis|jeans|units|t-shirts|meter|items|kg|શર્ટ|સાડી|કુર્તી|कुर्ती|शर्ट्स|साड़ी|साडी|पीस|किलो|મીટર|मीटर)", raw, re.IGNORECASE)
         if qty_match:
             try:
                 quantity = int(qty_match.group(1))
@@ -308,6 +312,13 @@ class NLPParser:
                 if (total_amount is None or val != int(total_amount)) and val <= 1000:
                     quantity = val
                     break
+
+        # "10 sarees, 12000 on udhar": the other, bigger number is the total
+        if total_amount is None:
+            others = [int(n.replace(",", "")) for n in re.findall(r"\b(\d[\d,]*)\b", raw)]
+            others = [n for n in others if n != quantity and n >= 50 and len(str(n)) < 10]
+            if others:
+                total_amount = float(max(others))
 
         # Extract Product Name
         product_name = "Items"
@@ -330,6 +341,8 @@ class NLPParser:
             "સાડી": "ડિઝાઇનર સાડી",
             "कुर्ती": "कॉटन कुर्ती",
             "शर्ट्स": "शर्ट्स",
+            "साड़ी": "साड़ी", "साडी": "साड़ी", "साड़ियाँ": "साड़ी", "कुर्ते": "कुर्ते", "जींस": "जींस",
+            "કુર્તી": "કુર્તી", "જીન્સ": "જીન્સ", "શર્ટ્સ": "શર્ટ",
         }
         matched_product = False
         for kw, clean_name in product_keywords.items():

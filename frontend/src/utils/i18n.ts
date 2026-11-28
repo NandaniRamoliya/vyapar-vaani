@@ -205,6 +205,28 @@ const D = {
   'set.install': { en: 'Use it like an app', hi: 'ऐप की तरह चलाएँ', gu: 'એપની જેમ વાપરો' },
   'set.installText': { en: 'In Chrome on your phone: menu ⋮ → “Add to Home screen”.', hi: 'फ़ोन के Chrome में: मेनू ⋮ → “होम स्क्रीन पर जोड़ें”।', gu: 'ફોનના Chrome માં: મેનુ ⋮ → “હોમ સ્ક્રીન પર ઉમેરો”.' },
   'set.clearChat': { en: 'Clear Vaani conversation', hi: 'वाणी की बातचीत साफ़ करें', gu: 'વાણીની વાતચીત સાફ કરો' },
+  // login
+  'login.tagline': { en: 'Your voice munim. Speak your khata in English, Hindi or Gujarati.', hi: 'आपकी आवाज़ वाली मुनीम। अंग्रेज़ी, हिंदी या गुजराती में खाता बोलिए।', gu: 'તમારી અવાજવાળી મુનીમ. અંગ્રેજી, હિન્દી કે ગુજરાતીમાં ખાતું બોલો.' },
+  'login.login': { en: 'Login ID', hi: 'लॉगिन आईडी', gu: 'લૉગિન આઈડી' },
+  'login.password': { en: 'Password', hi: 'पासवर्ड', gu: 'પાસવર્ડ' },
+  'login.submit': { en: 'Log in', hi: 'लॉगिन करें', gu: 'લૉગિન કરો' },
+  'login.wait': { en: 'Logging in…', hi: 'लॉगिन हो रहा है…', gu: 'લૉગિન થાય છે…' },
+  'login.demo': { en: 'Try a demo account', hi: 'डेमो खाता आज़माएँ', gu: 'ડેમો ખાતું અજમાવો' },
+  'login.demoShop1': { en: 'Cloth shop', hi: 'कपड़े की दुकान', gu: 'કાપડની દુકાન' },
+  'login.demoShop2': { en: 'Kirana store', hi: 'किराना स्टोर', gu: 'કરિયાણાની દુકાન' },
+  'login.demoAdmin': { en: 'Admin (all shops)', hi: 'एडमिन (सभी दुकानें)', gu: 'એડમિન (બધી દુકાનો)' },
+  'login.server': { en: 'Server address', hi: 'सर्वर पता', gu: 'સર્વર સરનામું' },
+  'login.serverHelp': { en: 'Only needed when the app and the server are hosted separately (e.g. GitHub Pages + Render).', hi: 'तभी ज़रूरी जब ऐप और सर्वर अलग जगह हों (जैसे GitHub Pages + Render)।', gu: 'ત્યારે જ જરૂરી જ્યારે એપ અને સર્વર અલગ જગ્યાએ હોય (જેમ કે GitHub Pages + Render).' },
+  'login.noServer': { en: 'Cannot reach the server. Check the server address below, or start it with “docker compose up”.', hi: 'सर्वर से जुड़ नहीं पा रहे। नीचे सर्वर पता जाँचें या “docker compose up” से चालू करें।', gu: 'સર્વર સાથે જોડાઈ શકતા નથી. નીચે સર્વર સરનામું તપાસો અથવા “docker compose up” થી ચાલુ કરો.' },
+  'set.account': { en: 'Account', hi: 'खाता (लॉगिन)', gu: 'એકાઉન્ટ (લૉગિન)' },
+  'set.logout': { en: 'Log out', hi: 'लॉग आउट', gu: 'લૉગ આઉટ' },
+  'set.changePw': { en: 'Change password', hi: 'पासवर्ड बदलें', gu: 'પાસવર્ડ બદલો' },
+  'set.oldPw': { en: 'Current password', hi: 'अभी का पासवर्ड', gu: 'હાલનો પાસવર્ડ' },
+  'set.newPw': { en: 'New password (6+ letters)', hi: 'नया पासवर्ड (6+ अक्षर)', gu: 'નવો પાસવર્ડ (6+ અક્ષર)' },
+  'set.pwChanged': { en: 'Password changed', hi: 'पासवर्ड बदल गया', gu: 'પાસવર્ડ બદલાઈ ગયો' },
+  'set.autoLang': { en: 'Reply in the language I speak', hi: 'जिस भाषा में बोलूँ, उसी में जवाब', gu: 'જે ભાષામાં બોલું, તેમાં જવાબ' },
+  'set.autoLangText': { en: 'Speak English, Hindi or Gujarati, even mixed in one sentence. Vaani answers in the language you used and switches the app to it.', hi: 'अंग्रेज़ी, हिंदी या गुजराती बोलिए, एक वाक्य में मिलाकर भी। वाणी उसी भाषा में जवाब देगी और ऐप की भाषा बदल देगी।', gu: 'અંગ્રેજી, હિન્દી કે ગુજરાતી બોલો, એક વાક્યમાં ભેળવીને પણ. વાણી એ જ ભાષામાં જવાબ આપશે અને એપની ભાષા બદલી દેશે.' },
+  'voice.switched': { en: 'Switched to English', hi: 'हिंदी में बदल दिया', gu: 'ગુજરાતીમાં બદલી દીધું' },
 } satisfies Record<string, Entry>;
 
 export type I18nKey = keyof typeof D;

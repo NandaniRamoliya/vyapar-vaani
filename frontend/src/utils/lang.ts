@@ -242,3 +242,20 @@ export function saveLanguage(lang: LanguageCode) {
     /* storage unavailable */
   }
 }
+
+/** "Reply in the language I speak" (on by default). */
+export function getAutoLanguage(): boolean {
+  try {
+    return localStorage.getItem('vv_autolang') !== 'off';
+  } catch (_e) {
+    return true;
+  }
+}
+
+export function setAutoLanguage(on: boolean) {
+  try {
+    localStorage.setItem('vv_autolang', on ? 'on' : 'off');
+  } catch (_e) {
+    /* storage unavailable */
+  }
+}
