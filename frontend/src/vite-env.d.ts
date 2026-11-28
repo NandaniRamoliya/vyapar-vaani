@@ -5,8 +5,6 @@ interface ImportMetaEnv {
   readonly VITE_API_BASE?: string;
   /** "true" hides the demo-account buttons on the login screen */
   readonly VITE_HIDE_DEMO?: string;
-  /** "true" opens the server-address box on the login screen by default */
-  readonly VITE_SHOW_SERVER?: string;
 }
 
 interface ImportMeta {

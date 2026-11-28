@@ -22,7 +22,7 @@ Open **http://localhost:3000**. No `.env` file is needed. On first start the ser
 
 | Login | Password | What it is |
 |---|---|---|
-| `admin` | `admin@123` | Platform admin (all shops) |
+| `admin` | `admin@123` | Platform admin: log in at **http://localhost:3000/#/admin** |
 | `nandani` | `nandani@123` | Demo cloth shop "Nandani Textiles" |
 | `patel` | `patel@123` | Demo kirana "Patel Kirana Store" |
 
@@ -95,7 +95,7 @@ The Render URL also serves the full app by itself (same image), so it can be you
 3. Push to `main` (or run the **Deploy to GitHub Pages** workflow by hand).
    [`pages.yml`](../.github/workflows/pages.yml) builds with the right base path (`/<repo>/`) and publishes.
 
-If `API_BASE_URL` isn't set, the login screen shows a **Server address** box where anyone can type the server URL.
+`API_BASE_URL` is required for the Pages site: without it the app has no server to talk to. (The Render URL itself always works, since it serves the app too.)
 
 ## 4. Configuration reference
 

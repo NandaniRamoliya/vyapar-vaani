@@ -1,7 +1,9 @@
 # Admin guide (platform owner)
 
-The admin console is for whoever runs VyaparVaani for many shops. Log in with the admin account
-(`ADMIN_LOGIN` / `ADMIN_PASSWORD`; demo: `admin` / `admin@123`).
+The admin console is for whoever runs VyaparVaani for many shops. It has its **own login page**:
+`<your site>/#/admin` (e.g. http://localhost:3000/#/admin). Log in with the admin account
+(`ADMIN_LOGIN` / `ADMIN_PASSWORD`; demo: `admin` / `admin@123`). The shop login only accepts shop accounts,
+and the admin login only accepts admin accounts.
 
 ## First steps
 

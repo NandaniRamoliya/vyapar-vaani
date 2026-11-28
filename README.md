@@ -15,7 +15,7 @@ each with **its own login and its own isolated database**.
 | | |
 |---|---|
 | 🚀 Run it | `docker compose up --build` → http://localhost:3000 |
-| 🔑 Demo logins | cloth shop `nandani` / `nandani@123` · kirana `patel` / `patel@123` · admin `admin` / `admin@123` |
+| 🔑 Demo logins | Shop login (`/`): cloth shop `nandani` / `nandani@123` · kirana `patel` / `patel@123` (or tap the demo buttons) · Admin login (`/#/admin`): `admin` / `admin@123` |
 | 📚 Docs | [User guide](docs/USER_GUIDE.md) · [Admin guide](docs/ADMIN_GUIDE.md) · [Deployment](docs/DEPLOYMENT.md) · [Architecture](docs/ARCHITECTURE.md) · [API](docs/API.md) · [Security](docs/SECURITY.md) · [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) |
 | 📊 Pitch deck | [pitch_deck.pdf](pitch_deck.pdf) |
 

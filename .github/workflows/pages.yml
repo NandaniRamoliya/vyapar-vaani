@@ -2,7 +2,7 @@
 #
 # GitHub Pages only serves static files, so the API server runs elsewhere (see docs/DEPLOYMENT.md).
 # Set its address once in: Settings → Secrets and variables → Actions → Variables → API_BASE_URL
-# (e.g. https://vyapar-vaani.onrender.com). Without it, people can type the server address on the login screen.
+# (e.g. https://vyapar-vaani.onrender.com).
 name: Deploy to GitHub Pages
 
 on:
@@ -38,7 +38,6 @@ jobs:
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
           VITE_API_BASE: ${{ vars.API_BASE_URL }}
-          VITE_SHOW_SERVER: ${{ vars.API_BASE_URL == '' && 'true' || '' }}
       - name: Single-page app fallback
         run: cp dist/index.html dist/404.html
       - uses: actions/upload-pages-artifact@v3

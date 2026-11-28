@@ -232,6 +232,14 @@ export function loadLanguage(): LanguageCode {
   } catch (_e) {
     /* storage unavailable */
   }
+  // First visit: follow the phone's own language
+  const prefs = typeof navigator !== 'undefined' ? navigator.languages || [navigator.language] : [];
+  for (const l of prefs) {
+    const code = (l || '').toLowerCase();
+    if (code.startsWith('gu')) return 'gu-IN';
+    if (code.startsWith('hi')) return 'hi-IN';
+    if (code.startsWith('en')) return 'en-IN';
+  }
   return 'en-IN';
 }
 

@@ -14,7 +14,7 @@ import { KhataTab } from './components/KhataTab';
 import { Order, Customer, Reminder, VoiceInteraction, LanguageCode } from './types';
 import { api } from './services/api';
 import { loadLanguage, saveLanguage } from './utils/lang';
-import { LoginScreen } from './components/LoginScreen';
+import { AdminLogin, ShopLogin } from './components/LoginScreen';
 import { AdminApp } from './components/AdminApp';
 import { Session, getSession, onSessionChange } from './services/auth';
 import { setShopName } from './utils/whatsapp';
@@ -24,6 +24,12 @@ export function App() {
   const [session, setSessionState] = useState<Session | null>(getSession);
   const [language, setLanguageState] = useState<LanguageCode>(loadLanguage);
   useEffect(() => onSessionChange(setSessionState), []);
+  const [isAdminRoute, setIsAdminRoute] = useState(() => window.location.hash.startsWith('#/admin'));
+  useEffect(() => {
+    const onHash = () => setIsAdminRoute(window.location.hash.startsWith('#/admin'));
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
   // Before rendering anything that shows or sends the shop name (bills, reminders, Vaani's header)
   setShopName(session?.shop?.name);
   const setLanguage = (lang: LanguageCode) => {
@@ -31,7 +37,8 @@ export function App() {
     saveLanguage(lang);
   };
 
-  if (!session) return <LoginScreen language={language} onLanguageChange={setLanguage} />;
+  // Shopkeepers and the platform admin log in on separate pages: /  and  /#/admin
+  if (!session) return isAdminRoute ? <AdminLogin /> : <ShopLogin language={language} />;
   if (session.user.role === 'admin') return <AdminApp />;
   return <ShopApp key={session.shop?.id} language={language} setLanguage={setLanguage} />;
 }

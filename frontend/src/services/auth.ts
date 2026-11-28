@@ -22,7 +22,6 @@ export interface Session {
 }
 
 const SESSION_KEY = 'vv_session';
-const SERVER_KEY = 'vv_server';
 
 function read(key: string): string | null {
   try {
@@ -40,11 +39,9 @@ function write(key: string, value: string | null) {
   }
 }
 
+/** Set once at build time when the app and the server are hosted separately (GitHub Pages + Render). */
 export function getServer(): string {
-  return (read(SERVER_KEY) || import.meta.env.VITE_API_BASE || '').trim().replace(/\/+$/, '');
-}
-export function setServer(url: string) {
-  write(SERVER_KEY, url.trim() ? url.trim().replace(/\/+$/, '') : null);
+  return (import.meta.env.VITE_API_BASE || '').trim().replace(/\/+$/, '');
 }
 export const serverUrl = (path: string) => (/^https?:/.test(path) ? path : `${getServer()}${path}`);
 
@@ -87,15 +84,25 @@ export async function privateObjectUrl(path: string): Promise<string> {
   return URL.createObjectURL(await res.blob());
 }
 
-export async function login(loginName: string, password: string): Promise<Session> {
+export class WrongRoleError extends Error {}
+
+/**
+ * Log in. `expectRole` keeps the shop login and the admin login separate: an account of the
+ * other kind is signed straight back out and a WrongRoleError is thrown.
+ */
+export async function login(loginName: string, password: string, expectRole?: SessionUser['role']): Promise<Session> {
   const res = await apiFetch('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ login: loginName, password }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.detail || 'Login failed');
+  if (!res.ok) throw Object.assign(new Error(data.detail || 'Login failed'), { status: res.status });
   const s: Session = { token: data.data.token, user: data.data.user, shop: data.data.shop };
+  if (expectRole && s.user.role !== expectRole) {
+    await fetch(serverUrl('/api/auth/logout'), { method: 'POST', headers: { Authorization: `Bearer ${s.token}` } }).catch(() => {});
+    throw new WrongRoleError(s.user.role);
+  }
   setSession(s);
   return s;
 }
