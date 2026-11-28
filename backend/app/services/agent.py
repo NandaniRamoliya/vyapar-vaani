@@ -19,6 +19,7 @@ from app.services import khata, signatures
 from app.services.indic import best_name_match, has_indic, name_candidates, normalize_numbers, to_display_name
 from app.services.nlp_parser import NLPParser, _contains_any
 from app.services.replies import first_name, human_date, join_names, money, say
+from app.services.when import human_when, parse_when, to_fields
 
 ENTRY_INTENTS = ("add_udhar", "record_payment")
 NAME_INTENTS = ENTRY_INTENTS + ("check_balance", "play_proof", "create_order")
@@ -30,6 +31,9 @@ PRONOUNS = [
     "એનું", "એના", "એની", "એને", "તેનું", "તેના", "તેને", "એમનું", "એમના", "એમને", "એણે", "તેણે", "બીજા",
 ]
 HISAAB_WORDS = ["hisaab", "hisab", "हिसाब", "હિસાબ"]
+# "aur 500" / "Priya ke liye bhi": repeat the last khata action
+CONTINUE_WORDS = ["aur", "and", "also", "bhi", "too", "same", "again", "phir se", "और", "भी", "फिर से",
+                  "પણ", "બીજા", "વધુ", "ફરી"]
 
 
 def _required_slots(intent: str) -> list[str]:
@@ -39,11 +43,16 @@ def _required_slots(intent: str) -> list[str]:
         return ["customer_name", "total_amount"]
     if intent in ("check_balance", "play_proof"):
         return ["customer_name"]
+    if intent == "add_customer":
+        return ["name"]
     return []
 
 
 def _missing(intent: str, data: dict) -> list[str]:
-    return [s for s in _required_slots(intent) if not data.get(s)]
+    slots = _required_slots(intent)
+    if data.get("settle"):
+        slots = [s for s in slots if s != "amount"]  # "pura hisaab clear": amount = pending balance
+    return [s for s in slots if not data.get(s)]
 
 
 def _bare_name(text: str) -> Optional[str]:
@@ -64,8 +73,10 @@ def _bare_name(text: str) -> Optional[str]:
 class VoiceAgent:
 
     @classmethod
-    def handle(cls, transcript: str, language: str = "en-IN", context: Optional[dict] = None) -> dict[str, Any]:
+    def handle(cls, transcript: str, language: str = "en-IN", context: Optional[dict] = None,
+               client_time: Optional[str] = None) -> dict[str, Any]:
         raw = transcript.strip()
+        cls._now = cls._parse_client_time(client_time)
         text = normalize_numbers(raw)
         ctx = dict(context or {})
         conn = get_db_connection()
@@ -79,6 +90,17 @@ class VoiceAgent:
             conn.close()
         result["context"] = ctx
         return result
+
+    _now: Optional[datetime] = None
+
+    @staticmethod
+    def _parse_client_time(value: Optional[str]) -> Optional[datetime]:
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(value[:19]).replace(second=0, microsecond=0)
+        except ValueError:
+            return None
 
     # ---------------------------------------------------------------- understanding
     @classmethod
@@ -98,7 +120,21 @@ class VoiceAgent:
                     name = best_name_match(text, customers) or NLPParser.extract_khata_name(text) or _bare_name(text)
                     if name:
                         data["customer_name"] = name
+                elif slot == "name":  # new customer: "એનું નામ નંદની છે" / "Nandini"
+                    name = NLPParser.extract_new_customer_name(text) or _bare_name(text)
+                    if name:
+                        data["name"] = name
             result = {"intent": pending["intent"], "extracted_data": data}
+        elif guess == "unknown" and ctx.get("last_entry") and _contains_any(text.lower(), text, CONTINUE_WORDS):
+            # "aur 500 likho" / "Priya ke liye bhi": same action, new amount or new customer
+            last = ctx["last_entry"]
+            amount = NLPParser.extract_amount(text)
+            name = best_name_match(text, customers)
+            result = {"intent": last["intent"], "extracted_data": {
+                "customer_name": name or last.get("customer_name"),
+                "amount": amount or (last.get("amount") if name else None),
+                "note": raw[:140],
+            }}
         else:
             parsed = NLPParser.parse(text, language)
             result = {"intent": parsed["intent"], "extracted_data": dict(parsed["extracted_data"]),
@@ -119,11 +155,11 @@ class VoiceAgent:
                 data.clear()
                 data["customer_name"] = known
 
-        if intent in NAME_INTENTS:
+        if intent in NAME_INTENTS or intent == "create_reminder":
             known = best_name_match(text, customers)
             if known:
                 data["customer_name"] = known
-            elif not data.get("customer_name") and ctx.get("last_customer") and _contains_any(text.lower(), text, PRONOUNS):
+            elif intent != "create_reminder" and not data.get("customer_name") and ctx.get("last_customer") and _contains_any(text.lower(), text, PRONOUNS):
                 data["customer_name"] = ctx["last_customer"]
             elif data.get("customer_name") and has_indic(data["customer_name"]):
                 data["customer_name"] = to_display_name(data["customer_name"])
@@ -144,7 +180,9 @@ class VoiceAgent:
             data["missing"] = missing
             slot = missing[0]
             first = first_name(data.get("customer_name") or "")
-            if slot == "customer_name":
+            if slot == "name":
+                result["spoken_response"] = say("ask_customer_name", language)
+            elif slot == "customer_name":
                 result["spoken_response"] = say("ask_name", language)
             elif slot == "total_amount":
                 result["spoken_response"] = say("ask_total", language)
@@ -168,8 +206,14 @@ class VoiceAgent:
     def _entry(cls, cursor, result, text, language, ctx):
         data = result["extracted_data"]
         intent = result["intent"]
-        amount = float(data["amount"])
         row = khata.resolve_customer(cursor, data["customer_name"])
+        if data.get("settle") and not data.get("amount"):
+            pending = khata.get_balance(cursor, row["id"])["balance"] if row else 0.0
+            if pending <= 0:
+                result["spoken_response"] = say("balance_zero", language, name=row["name"] if row else data["customer_name"])
+                return
+            data["amount"] = pending
+        amount = float(data["amount"])
         if row:
             current = khata.get_balance(cursor, row["id"])["balance"]
             data.update({"customer_id": row["id"], "customer_name": row["name"], "phone": row["phone"] or "",
@@ -188,6 +232,7 @@ class VoiceAgent:
             prompt = say("new_customer_note", language, name=data["customer_name"]) + prompt
         result["confirmation_prompt"] = result["spoken_response"] = prompt
         result["confirmation_required"] = True
+        ctx["last_entry"] = {"intent": intent, "customer_name": data["customer_name"], "amount": amount}
 
     _on_add_udhar = _entry
     _on_record_payment = _entry
@@ -331,6 +376,47 @@ class VoiceAgent:
             return
         data.update({"target_type": action["type"], "target_id": action["id"], "description": what})
         result["confirmation_prompt"] = result["spoken_response"] = say("undo_confirm", language, what=what)
+        result["confirmation_required"] = True
+
+    # -- customers & reminders ------------------------------------------------
+    @classmethod
+    def _on_add_customer(cls, cursor, result, text, language, ctx):
+        data = result["extracted_data"]
+        cursor.execute("SELECT name FROM customers WHERE LOWER(name) = LOWER(?)", (data["name"],))
+        if cursor.fetchone():
+            result["spoken_response"] = say("customer_exists", language, name=data["name"])
+            return
+        data.setdefault("phone", "")
+        data.setdefault("business_notes", "Added by voice")
+        phone_part = f" ({data['phone']})" if data.get("phone") else ""
+        result["confirmation_prompt"] = result["spoken_response"] = say(
+            "confirm_customer", language, name=data["name"], phone_part=phone_part)
+        result["confirmation_required"] = True
+
+    @classmethod
+    def _on_create_reminder(cls, cursor, result, text, language, ctx):
+        data = result["extracted_data"]
+        due = parse_when(text, cls._now)
+        data.update(to_fields(due))
+        row = khata.resolve_customer(cursor, data.get("customer_name")) if data.get("customer_name") else None
+        name = row["name"] if row else data.get("customer_name")
+        if row:
+            data.update({"customer_id": row["id"], "customer_name": row["name"], "phone": row["phone"] or ""})
+            ctx["last_customer"] = row["name"]
+        kind = data.get("kind", "general")
+        if kind in ("payment", "call") and name:
+            title = say(f"rem_title_{kind}", language, name=name)
+            if kind == "payment" and row:
+                bal = khata.get_balance(cursor, row["id"])["balance"]
+                if bal > 0:
+                    title += say("rem_balance", language, bal=money(bal))
+        else:
+            title = data.get("task") or text
+        data["title"] = title
+        when = human_when(due, language, cls._now)
+        data["when_text"] = when
+        result["confirmation_prompt"] = result["spoken_response"] = say(
+            "confirm_reminder", language, when=when, title=title)
         result["confirmation_required"] = True
 
     # -- small talk -----------------------------------------------------------

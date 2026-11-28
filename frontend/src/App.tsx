@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { BottomNav } from './components/BottomNav';
-import { DashboardTab } from './components/DashboardTab';
+import { TodayTab } from './components/TodayTab';
+import { ReminderAlerts } from './components/ReminderAlerts';
 import { OrdersTab } from './components/OrdersTab';
 import { CustomersTab } from './components/CustomersTab';
 import { RemindersTab } from './components/RemindersTab';
@@ -10,7 +11,7 @@ import { VoiceHistoryTab } from './components/VoiceHistoryTab';
 import { SettingsTab } from './components/SettingsTab';
 import { VoiceAgent } from './components/VoiceAgent';
 import { KhataTab } from './components/KhataTab';
-import { DashboardStats, Order, Customer, Reminder, VoiceInteraction, LanguageCode } from './types';
+import { Order, Customer, Reminder, VoiceInteraction, LanguageCode } from './types';
 import { api } from './services/api';
 import { loadLanguage, saveLanguage } from './utils/lang';
 
@@ -18,7 +19,6 @@ export function App() {
   const [currentTab, setCurrentTab] = useState('voice_os');
   const [language, setLanguageState] = useState<LanguageCode>(loadLanguage);
 
-  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
@@ -34,14 +34,12 @@ export function App() {
 
   const loadAllData = useCallback(async () => {
     try {
-      const [statsData, ordersData, customersData, remindersData, historyData] = await Promise.all([
-        api.getStats().catch(() => null),
+      const [ordersData, customersData, remindersData, historyData] = await Promise.all([
         api.getOrders().catch(() => []),
         api.getCustomers().catch(() => []),
         api.getReminders().catch(() => []),
         api.getVoiceHistory().catch(() => []),
       ]);
-      if (statsData) setStats(statsData);
       setOrders(ordersData);
       setCustomers(customersData);
       setReminders(remindersData);
@@ -59,6 +57,7 @@ export function App() {
   }, [loadAllData]);
 
   const openVoice = () => setCurrentTab('voice_os');
+  const lateReminders = reminders.filter((r) => r.status === 'pending' && r.due_at && new Date(r.due_at) < new Date()).length;
   const isVoice = currentTab === 'voice_os';
 
   return (
@@ -86,20 +85,27 @@ export function App() {
           ) : (
             <>
               {currentTab === 'overview' && (
-                <DashboardTab stats={stats} orders={orders} onOpenVoice={openVoice} onSelectTab={setCurrentTab} language={language} />
+                <TodayTab language={language} refreshKey={refreshKey} onOpenVoice={openVoice} onSelectTab={setCurrentTab} onRefresh={loadAllData} />
               )}
-              {currentTab === 'orders' && <OrdersTab orders={orders} onRefresh={loadAllData} onOpenVoice={openVoice} />}
-              {currentTab === 'customers' && <CustomersTab customers={customers} onRefresh={loadAllData} onOpenVoice={openVoice} />}
+              {currentTab === 'orders' && <OrdersTab orders={orders} language={language} onRefresh={loadAllData} onOpenVoice={openVoice} />}
+              {currentTab === 'customers' && (
+                <CustomersTab customers={customers} language={language} refreshKey={refreshKey} onRefresh={loadAllData} onOpenVoice={openVoice} />
+              )}
               {currentTab === 'khata' && <KhataTab onOpenVoice={openVoice} onRefresh={loadAllData} refreshKey={refreshKey} language={language} />}
-              {currentTab === 'reminders' && <RemindersTab reminders={reminders} onRefresh={loadAllData} onOpenVoice={openVoice} />}
-              {currentTab === 'history' && <VoiceHistoryTab history={history} onOpenVoice={openVoice} />}
-              {currentTab === 'settings' && <SettingsTab />}
+              {currentTab === 'reminders' && (
+                <RemindersTab reminders={reminders} customers={customers} language={language} onRefresh={loadAllData} onOpenVoice={openVoice} />
+              )}
+              {currentTab === 'history' && <VoiceHistoryTab history={history} language={language} onOpenVoice={openVoice} />}
+              {currentTab === 'settings' && <SettingsTab language={language} onLanguageChange={setLanguage} />}
             </>
           )}
         </main>
 
-        <BottomNav currentTab={currentTab} onSelectTab={setCurrentTab} language={language} />
+        <BottomNav currentTab={currentTab} onSelectTab={setCurrentTab} language={language} reminderBadge={lateReminders} />
       </div>
+
+      {/* Rings, speaks and notifies when a reminder is due, on every screen */}
+      <ReminderAlerts language={language} onChanged={loadAllData} />
     </div>
   );
 }

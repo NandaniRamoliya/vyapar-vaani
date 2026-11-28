@@ -5,6 +5,7 @@ from typing import Any, Optional
 from app.database.db import get_db_connection
 from app.models.schemas import DashboardStats
 from app.services import khata
+from app.services import reminders as reminders_util
 from app.services.khata import format_inr
 from app.services.replies import first_name, money, say
 
@@ -157,36 +158,36 @@ class BusinessService:
                 spoken_response += " " + say("khata_now", language, bal=money(khata_balance))
 
         elif intent == "create_reminder":
-            customer_name = data.get("customer_name", "Rahul Sharma")
-            title = data.get("title", f"Follow up with {customer_name}")
-            reminder_date = data.get("reminder_date", datetime.now().strftime("%Y-%m-%d"))
-            reminder_time = data.get("reminder_time", "11:00 AM")
+            customer_name = data.get("customer_name") or ""
+            title = data.get("title") or data.get("task") or "Reminder"
+            reminder_date = data.get("reminder_date") or datetime.now().strftime("%Y-%m-%d")
+            reminder_time = data.get("reminder_time") or "10:00 AM"
+            due_at = data.get("due_at") or reminders_util.due_from(reminder_date, reminder_time)
+            kind = data.get("kind") or "general"
 
             rem_id = f"rem_{uuid.uuid4().hex[:8]}"
             cursor.execute(
-                "INSERT INTO reminders (id, customer_id, customer_name, title, reminder_date, reminder_time, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (rem_id, None, customer_name, title, reminder_date, reminder_time, "pending", now)
+                "INSERT INTO reminders (id, customer_id, customer_name, title, reminder_date, reminder_time, status, created_at, kind, due_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (rem_id, data.get("customer_id"), customer_name, title, reminder_date, reminder_time, "pending", now, kind, due_at)
             )
             conn.commit()
 
             result = {
                 "reminder_id": rem_id,
                 "title": title,
+                "customer_name": customer_name,
+                "kind": kind,
                 "reminder_date": reminder_date,
                 "reminder_time": reminder_time,
-                "status": "pending"
+                "due_at": due_at,
+                "status": "pending",
             }
-
-            if "gu" in language:
-                spoken_response = f"રિમાઇન્ડર સેવ થઈ ગયું છે. તમને {reminder_time} વાગ્યે યાદ કરાવવામાં આવશે."
-            elif "hi" in language:
-                spoken_response = f"रिमाइंडर सेव हो चुका है। आपको {reminder_time} बजे याद दिलाया जाएगा।"
-            else:
-                spoken_response = f"Reminder has been created successfully for {reminder_date} at {reminder_time}."
+            spoken_response = say("reminder_saved", language, when=data.get("when_text") or f"{reminder_date} {reminder_time}")
 
         elif intent == "add_customer":
-            name = data.get("name", "New Customer")
-            phone = data.get("phone", "+91 98000 00000")
+            name = data.get("name") or "New Customer"
+            phone = data.get("phone") or ""
             notes = data.get("business_notes", "Added via Voice")
 
             cust_id = f"cust_{uuid.uuid4().hex[:8]}"

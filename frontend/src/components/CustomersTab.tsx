@@ -1,232 +1,120 @@
-import React, { useState } from 'react';
-import { 
-  Users, 
-  Phone, 
-  Search, 
-  Plus, 
-  UserPlus, 
-  Calendar, 
-  MessageCircle, 
-  PhoneCall, 
-  Trash2,
-  X,
-  Store,
-  FileText
-} from 'lucide-react';
-import { Customer } from '../types';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Search, Plus, X, Phone, MessageCircle, Mic } from 'lucide-react';
+import { Customer, LanguageCode } from '../types';
 import { api } from '../services/api';
+import { useT } from '../utils/i18n';
+import { SHOP_NAME, formatINR, openWhatsApp } from '../utils/whatsapp';
 
-interface CustomersTabProps {
+interface Props {
   customers: Customer[];
+  language: LanguageCode;
+  refreshKey?: number;
   onRefresh?: () => void;
   onOpenVoice: () => void;
 }
 
-export const CustomersTab: React.FC<CustomersTabProps> = ({ customers, onRefresh, onOpenVoice }) => {
+export const CustomersTab: React.FC<Props> = ({ customers, language, refreshKey, onRefresh, onOpenVoice }) => {
+  const tr = useT(language);
   const [search, setSearch] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
-  // Form State
+  const [formOpen, setFormOpen] = useState(false);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [notes, setNotes] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [balances, setBalances] = useState<Record<string, number>>({});
 
-  const handleAddCustomer = async (e: React.FormEvent) => {
+  useEffect(() => {
+    api
+      .getKhata()
+      .then((k) => setBalances(Object.fromEntries(k.accounts.map((a) => [a.customer_id, a.balance]))))
+      .catch(() => {});
+  }, [refreshKey]);
+
+  const list = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return customers.filter((c) => !q || c.name.toLowerCase().includes(q) || (c.phone || '').includes(q));
+  }, [customers, search]);
+
+  const save = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-
-    setIsSubmitting(true);
+    setSaving(true);
     try {
-      await api.createCustomer({
-        name: name.trim(),
-        phone: phone.trim() || '+91 98000 00000',
-        business_notes: notes.trim() || 'Direct Account',
-      });
-      setIsModalOpen(false);
+      await api.createCustomer({ name: name.trim(), phone: phone.trim(), business_notes: note.trim() });
+      setFormOpen(false);
       setName('');
       setPhone('');
-      setNotes('');
-      if (onRefresh) onRefresh();
-    } catch (err) {
-      console.error(err);
-      alert('Failed to add customer');
+      setNote('');
+      onRefresh?.();
     } finally {
-      setIsSubmitting(false);
+      setSaving(false);
     }
   };
 
-  const handleWhatsApp = (cust: Customer) => {
-    const rawNumber = (cust.phone || '').replace(/[^0-9]/g, '');
-    const text = encodeURIComponent(`Namaste ${cust.name}, greetings from Nandani Textiles! How can we assist you today?`);
-    window.open(`https://wa.me/${rawNumber}?text=${text}`, '_blank');
-  };
-
-  const filtered = customers.filter(
-    (c) =>
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.phone.toLowerCase().includes(search.toLowerCase()) ||
-      c.business_notes.toLowerCase().includes(search.toLowerCase())
-  );
+  const balanceText = (b: number | undefined) =>
+    b == null ? '' : b > 0 ? tr('common.owes', { amt: formatINR(b) }) : b < 0 ? tr('common.advance', { amt: formatINR(b) }) : tr('common.settled');
 
   return (
-    <div className="space-y-5">
-      {/* Top Action Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center space-x-2 flex-1 max-w-md bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-          <Search className="w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search customers by name, phone or notes..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="bg-transparent border-none text-xs focus:outline-none w-full text-slate-900"
-          />
+    <div className="max-w-3xl mx-auto space-y-4">
+      <div className="flex gap-2">
+        <div className="flex-1 flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-3 h-12">
+          <Search className="w-5 h-5 text-slate-400" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tr('common.search')} className="flex-1 bg-transparent text-base focus:outline-none" />
         </div>
-
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>New Customer</span>
-          </button>
-
-          <button
-            onClick={onOpenVoice}
-            className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-            <span>Add via Voice</span>
-          </button>
-        </div>
+        <button onClick={onOpenVoice} aria-label={tr('nav.talk')} className="h-12 w-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center cursor-pointer">
+          <Mic className="w-5 h-5" />
+        </button>
+        <button onClick={() => setFormOpen(!formOpen)} className="h-12 px-4 rounded-2xl bg-slate-900 text-white font-bold flex items-center gap-2 cursor-pointer">
+          {formOpen ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+          <span className="hidden sm:inline">{tr('cus.new')}</span>
+        </button>
       </div>
 
-      {/* Customers Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map((c) => (
-          <div key={c.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:border-slate-300 transition-all flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-base font-bold text-slate-900">{c.name}</h4>
-                <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-500 font-medium">{c.id}</span>
-              </div>
-              
-              <div className="flex items-center space-x-2 text-xs text-indigo-600 font-semibold mb-3">
-                <Phone className="w-3.5 h-3.5" />
-                <span>{c.phone || '+91 98000 00000'}</span>
-              </div>
+      {formOpen && (
+        <form onSubmit={save} className="bg-white rounded-3xl border border-slate-200 p-4 space-y-3">
+          <p className="font-black text-slate-900">{tr('cus.new')}</p>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder={tr('cus.name')} required className="w-full h-12 px-3 rounded-xl border border-slate-300 text-base" />
+          <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" placeholder={tr('cus.phone')} className="w-full h-12 px-3 rounded-xl border border-slate-300 text-base" />
+          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder={tr('cus.note')} className="w-full h-12 px-3 rounded-xl border border-slate-300 text-base" />
+          <p className="text-xs text-slate-500">{tr('common.speakInstead')}: “Naya grahak jodo, naam Kavita”</p>
+          <button type="submit" disabled={saving} className="w-full h-12 rounded-2xl bg-slate-900 text-white font-bold cursor-pointer disabled:opacity-60">
+            {saving ? tr('common.saving') : tr('common.save')}
+          </button>
+        </form>
+      )}
 
-              <p className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100 mb-4 line-clamp-2">
-                {c.business_notes || 'Regular commercial account'}
-              </p>
-            </div>
-
-            <div>
-              {/* Quick Communication Actions (WhatsApp & Phone Call) */}
-              <div className="flex items-center space-x-2 mb-3">
-                <button
-                  onClick={() => handleWhatsApp(c)}
-                  className="flex-1 flex items-center justify-center space-x-1 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-semibold transition-colors cursor-pointer"
-                >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  <span>WhatsApp</span>
-                </button>
-                <a
-                  href={`tel:${c.phone}`}
-                  className="flex-1 flex items-center justify-center space-x-1 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold transition-colors"
-                >
-                  <PhoneCall className="w-3.5 h-3.5" />
-                  <span>Call</span>
+      {list.length === 0 && <p className="py-10 text-center text-slate-400">{tr('cus.empty')}</p>}
+      <div className="bg-white rounded-3xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+        {list.map((c) => {
+          const b = balances[c.id];
+          const digits = (c.phone || '').replace(/[^0-9+]/g, '');
+          return (
+            <div key={c.id} className="p-4 flex items-center gap-3">
+              <div className="w-11 h-11 shrink-0 rounded-2xl bg-indigo-50 text-indigo-700 font-black flex items-center justify-center">{c.name.charAt(0).toUpperCase()}</div>
+              <div className="min-w-0 flex-1">
+                <p className="font-bold text-slate-900 truncate">{c.name}</p>
+                <p className="text-xs text-slate-500 truncate">
+                  {c.phone || tr('common.noPhone')}
+                  {b != null && (
+                    <>
+                      {' · '}
+                      <span className={b > 0 ? 'text-rose-600 font-semibold' : 'text-emerald-600'}>{balanceText(b)}</span>
+                    </>
+                  )}
+                </p>
+              </div>
+              {digits && (
+                <a href={`tel:${digits}`} aria-label={tr('common.call')} className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center">
+                  <Phone className="w-5 h-5" />
                 </a>
-              </div>
-
-              <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-[11px] text-slate-400">
-                <span className="flex items-center">
-                  <Calendar className="w-3 h-3 mr-1" /> Added: {c.created_at ? c.created_at.split(' ')[0] : 'Recent'}
-                </span>
-                <span className="text-indigo-600 font-semibold">Verified Client</span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Manual Customer Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 shadow-2xl border border-slate-200 w-full max-w-md animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center">
-                  <Users className="w-4 h-4" />
-                </div>
-                <h3 className="font-bold text-slate-900 text-base">Add New Customer</h3>
-              </div>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-              >
-                <X className="w-4 h-4" />
+              )}
+              <button onClick={() => openWhatsApp(c.phone, tr('cus.hello', { name: c.name.split(' ')[0], shop: SHOP_NAME }))} aria-label={tr('common.whatsapp')} className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center cursor-pointer">
+                <MessageCircle className="w-5 h-5" />
               </button>
             </div>
-
-            <form onSubmit={handleAddCustomer} className="mt-4 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Customer / Business Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Ramesh Textiles"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Mobile / WhatsApp Number</label>
-                <input
-                  type="text"
-                  placeholder="+91 98765 43210"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Business Notes / Location</label>
-                <textarea
-                  rows={3}
-                  placeholder="e.g. Surat Wholesale Market, regular buyer of cotton fabrics"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div className="flex items-center space-x-3 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-xs font-semibold text-white shadow-xs"
-                >
-                  {isSubmitting ? 'Saving...' : 'Add Customer'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+          );
+        })}
+      </div>
     </div>
   );
 };

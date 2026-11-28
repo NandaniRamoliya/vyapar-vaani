@@ -2,6 +2,9 @@ import re
 import json
 import uuid
 from datetime import datetime, timedelta
+
+from app.services.indic import english_gloss, has_indic, to_display_name
+from app.services.when import parse_when, to_fields
 from typing import Any, Tuple
 
 INDIAN_NUMBER_WORDS = {
@@ -43,8 +46,17 @@ KHATA_PAYMENT_WORDS = [
     "paid", "received", "receive", "got payment", "payment of", "payment from", "payment mila",
     "payment aaya", "jama", "gave me", "returned", "cleared", "chukaya", "chuka diya", "de diye",
     "de gaya", "mil gaye", "mile",
-    "भुगतान", "पेमेंट", "जमा", "चुकाए", "चुकाया", "मिले", "मिल गए", "वापस किए",
-    "ભર્યા", "જમા", "ચૂકવ્યા", "મળ્યા", "પેમેન્ટ", "પાછા આપ્યા",
+    "deposit", "deposits", "deposited", "deposite", "credited", "add money", "added money", "money added",
+    "paise add", "paisa add", "paise jama", "paisa jama", "paid back", "wapas diye", "vapas diye", "bhar diye",
+    "भुगतान", "पेमेंट", "जमा", "चुकाए", "चुकाया", "चुका दिए", "मिले", "मिल गए", "वापस किए", "वापस दिए", "भर दिए",
+    "ભર્યા", "ભરી દીધા", "જમા", "ચૂકવ્યા", "ચૂકવી દીધા", "મળ્યા", "પેમેન્ટ", "પાછા આપ્યા",
+]
+# Paying off the whole balance: amount = whatever is pending
+KHATA_SETTLE_WORDS = [
+    "settle", "settled", "settle kar", "hisaab clear", "hisab clear", "clear kar diya", "pura hisaab", "pura hisab",
+    "poora hisaab", "full payment", "barabar kar diya", "khata clear", "sab clear",
+    "पूरा हिसाब", "हिसाब साफ", "हिसाब चुकता", "चुकता कर", "पूरा पेमेंट", "खाता साफ",
+    "પૂરો હિસાબ", "હિસાબ ચોખ્ખો", "પૂરા પૈસા", "ચોખ્ખું કરી", "ખાતું ચોખ્ખું",
 ]
 # "diye / आप्या" (gave) is direction-dependent: "Rahul NE 5000 diye" = he paid,
 # "Rahul KO 5000 diye" = you gave him udhar. Resolved in _detect_khata_intent.
@@ -56,7 +68,16 @@ KHATA_CREDIT_WORDS = [
     "baaki likho", "baki likho", "likh do", "likh lo", "likho", "likh de", "chadha do", "chadhao",
     "उधार", "खाते में", "बाकी लिखो", "लिखो", "लिख दो", "लिख लो", "चढ़ा दो",
     "ઉધાર", "ખાતામાં", "ખાતે", "લખો", "લખી દો", "લખી લો", "ચડાવો",
+    # took goods without paying
+    "took", "taken", "le gaya", "le gayi", "le gaye", "maal liya", "saman liya", "udhaar pe", "on khata",
+    "baaki rakho", "baki rakho", "ले गया", "ले गई", "ले गए", "माल लिया", "सामान लिया", "बाकी रखो",
+    "લઈ ગયા", "લઈ ગયો", "લઈ ગઈ", "માલ લીધો", "બાકી રાખો", "ઉધારમાં",
 ]
+REMINDER_WORDS = ["remind", "reminder", "yaad dila", "yaad kara", "yaad rakhna", "alarm", "notify me", "bata dena",
+                  "याद दिला", "याद करा", "याद रखना", "बता देना", "રિમાઇન્ડર", "યાદ અપાવ", "યાદ કરાવ", "યાદ દેવડાવ", "કહેજે"]
+CUSTOMER_ADD_WORDS = ["add", "new", "naya", "nava", "navo", "create", "register", "jodo", "umero",
+                      "जोड़ो", "जोड़", "नया", "नए", "ઉમેરો", "ઉમેર", "નવો", "નવા", "નવી"]
+CUSTOMER_WORDS = ["customer", "grahak", "ग्राहक", "ગ્રાહક"]
 PROOF_WORDS = [
     "proof", "saboot", "sabut", "saboot sunao", "recording", "awaaz sunao", "awaz sunao", "voice sunao",
     "play voice", "play proof", "play recording", "dispute", "mukar", "mukar gaya", "mana kar raha", "inkaar",
@@ -109,8 +130,8 @@ class NLPParser:
         text = transcript.strip()
         lower = text.lower()
 
-        # 1. Detect Intent
-        intent = cls._detect_intent(lower, text)
+        # 1. Detect Intent (with English glosses for loanwords: "એડ કસ્ટમર" = "add customer")
+        intent = cls.detect_intent(text)
         if intent in ("play_proof", "undo_last", "greet", "thanks", "help"):
             name = cls.extract_khata_name(text) if intent == "play_proof" else None
             return {"intent": intent, "extracted_data": {"customer_name": name} if name else {},
@@ -122,10 +143,10 @@ class NLPParser:
             confirmation_required = not extracted_data.get("missing")
         elif intent == "create_reminder":
             extracted_data, prompt, spoken = cls._extract_reminder_entities(text, lower, language)
-            confirmation_required = True
+            confirmation_required = False  # the agent writes the title and confirms
         elif intent == "add_customer":
             extracted_data, prompt, spoken = cls._extract_customer_entities(text, lower, language)
-            confirmation_required = True
+            confirmation_required = False  # the agent confirms once the name is known
         elif intent in ("add_udhar", "record_payment"):
             extracted_data, prompt, spoken = cls._extract_khata_entry_entities(text, lower, language, intent)
             confirmation_required = not extracted_data.get("missing")
@@ -172,8 +193,8 @@ class NLPParser:
 
     @classmethod
     def detect_intent(cls, text: str) -> str:
-        text = text.strip()
-        return cls._detect_intent(text.lower(), text)
+        aug = f"{text.strip()} {english_gloss(text)}".strip()
+        return cls._detect_intent(aug.lower(), aug)
 
     @classmethod
     def _detect_intent(cls, lower: str, raw: str) -> str:
@@ -189,9 +210,7 @@ class NLPParser:
             return "create_order"
 
         # Check Reminder Creation
-        if any(w in lower for w in ["remind me", "add reminder", "set reminder", "call reminder", "reminder dalo", "yaad dilao"]):
-            return "create_reminder"
-        if any(w in raw for w in ["रिमाइंडर", "याद दिलाना", "याद दिलाओ", "યાદ અપાવો", "રિમાઇન્ડર", "કોલ કરવાનું યાદ"]):
+        if _contains_any(lower, raw, REMINDER_WORDS) and not _contains_any(lower, raw, ["show reminders", "list reminders"]):
             return "create_reminder"
 
         # Check Khata / Udhar (credit ledger)
@@ -202,7 +221,9 @@ class NLPParser:
         if ("shirts" in lower or "sarees" in lower or "kurtis" in lower or "jeans" in lower) and ("total" in lower or "rupees" in lower or "₹" in raw or "रुपये" in raw or "રૂપિયા" in raw):
             return "create_order"
 
-        # Check Customer Creation
+        # Check Customer Creation: "add new customer", "નવો કસ્ટમર ઉમેરો", "naya grahak jodo"
+        if _contains_any(lower, raw, CUSTOMER_WORDS) and _contains_any(lower, raw, CUSTOMER_ADD_WORDS):
+            return "add_customer"
         if any(w in lower for w in ["add customer", "new customer", "create customer", "grahak add karo", "nava grahak"]):
             return "add_customer"
         if any(w in raw for w in ["नया ग्राहक", "ग्राहक जोड़ो", "નવા ગ્રાહક", "ગ્રાહક ઉમેરો"]):
@@ -357,100 +378,77 @@ class NLPParser:
 
     @classmethod
     def _extract_reminder_entities(cls, raw: str, lower: str, lang: str) -> Tuple[dict, str, str]:
-        # Customer in reminder
-        customer_name = "Rahul Sharma"
-        reminder_verbs = {"call", "meet", "contact", "collect", "send", "check", "get", "take", "pay",
-                          "remind", "follow", "ask", "verify", "dispatch", "deliver", "me", "a", "the", "my"}
-        for pat in (r"(?:call|meet|contact|રાહુલને|राहुल को)\s+([A-Za-z]+)", r"(?:from|with|to)\s+([A-Za-z]+)"):
-            found = None
-            for name_match in re.finditer(pat, raw, re.IGNORECASE):
-                matched = name_match.group(1).capitalize()
-                if matched.lower() not in reminder_verbs:
-                    found = matched
+        """Who, when and what. The agent resolves the customer and writes the title in the right language."""
+        verbs = {"call", "meet", "contact", "collect", "send", "check", "get", "take", "pay", "remind", "follow",
+                 "ask", "verify", "dispatch", "deliver", "me", "a", "the", "my", "payment", "money", "paise", "up"}
+        customer_name = None
+        for pat in (r"(?:call|meet|contact|phone)\s+([A-Za-z]+)", r"(?:from|with|to)\s+([A-Za-z]+)",
+                    r"([A-Za-z]+)\s+(?:ko|se|ka|ki|ke)\b", r"(\S+)\s+(?:को|से|का|की|के)(?:\s|$)",
+                    r"(\S+?)(?:ને|ના|ની|નો|પાસેથી)(?:\s|$)"):
+            for m in re.finditer(pat, raw, re.IGNORECASE):
+                cand = m.group(1).strip(" ,.?!।")
+                if cand and cand.lower() not in verbs and not re.search(r"\d", cand) and cand.lower() not in KHATA_NAME_STOPWORDS:
+                    customer_name = to_display_name(cand) if has_indic(cand) else cand.capitalize()
                     break
-            if found:
-                customer_name = found
+            if customer_name:
                 break
 
-        # Date
-        today = datetime.now()
-        reminder_date = today.strftime("%Y-%m-%d")
-        if "tomorrow" in lower or "kal" in lower or "કાલે" in raw or "कल" in raw:
-            reminder_date = (today + timedelta(days=1)).strftime("%Y-%m-%d")
-
-        # Time
-        reminder_time = "11:00 AM"
-        time_match = re.search(r"(\d{1,2}(?::\d{2})?\s*(?:am|pm|baje|વાગ્યે|बजे))", raw, re.IGNORECASE)
-        if time_match:
-            raw_time = time_match.group(1).upper()
-            if ":" not in raw_time and ("AM" in raw_time or "PM" in raw_time):
-                raw_time = re.sub(r"(\d+)\s*(AM|PM)", r"\1:00 \2", raw_time)
-            reminder_time = raw_time
-        elif "11" in raw:
-            reminder_time = "11:00 AM"
-        elif "4" in raw or "चार" in raw:
-            reminder_time = "04:00 PM"
-
-        title = f"Call {customer_name}"
-        if "payment" in lower or "પૈસા" in raw or "पेमेंट" in raw:
-            title = f"Payment follow-up with {customer_name}"
-        elif "dispatch" in lower or "ઓર્ડર" in raw:
-            title = f"Order dispatch verification with {customer_name}"
-
-        extracted_data = {
-            "customer_name": customer_name,
-            "title": title,
-            "reminder_date": reminder_date,
-            "reminder_time": reminder_time,
-        }
-
-        if "gu" in lang:
-            prompt = f"રિમાઇન્ડર સેટ કરો: '{title}', તારીખ {reminder_date} અને સમય {reminder_time}. શું હું આ સેવ કરું?"
-            spoken = f"{title} માટે રિમાઇન્ડર સેટ કરું?"
-        elif "hi" in lang:
-            prompt = f"रिमाइंडर सेट करें: '{title}', तारीख {reminder_date} समय {reminder_time} बजे। क्या मैं इसे सेव करूँ?"
-            spoken = f"{title} के लिए रिमाइंडर सेव करूँ?"
+        if _contains_any(lower, raw, ["payment", "paise", "paisa", "udhar", "collect", "vasool", "vasuli", "baaki",
+                                      "पेमेंट", "पैसे", "वसूली", "उधार", "बाकी", "પૈસા", "પેમેન્ટ", "ઉઘરાણી", "ઉધાર", "બાકી"]):
+            kind = "payment"
+        elif _contains_any(lower, raw, ["call", "phone", "fon", "फोन", "फ़ोन", "कॉल", "ફોન", "કોલ"]):
+            kind = "call"
         else:
-            prompt = f"Set reminder: '{title}' on {reminder_date} at {reminder_time}. Should I confirm?"
-            spoken = f"Set reminder to {title} at {reminder_time}. Should I save it?"
+            kind = "general"
 
-        return extracted_data, prompt, spoken
+        task = re.sub(r"(?i)\b(remind me( to)?|set (a )?reminder( to)?|reminder|yaad dila(na|o|ana)?|please)\b", "", raw)
+        task = re.sub(r"(याद दिला(ना|ओ|देना)?|याद करा(ना|ओ|देना)?|યાદ (અપાવ|કરાવ|દેવડાવ)\S*|રિમાઇન્ડર)", "", task)
+        task = re.sub(r"\s+", " ", task).strip(" ,.।")
+
+        due = parse_when(raw)
+        extracted_data = {"customer_name": customer_name, "kind": kind, "task": task or raw.strip(), **to_fields(due)}
+        return extracted_data, "", ""
+
+    _NEW_NAME_STOP = {
+        "new", "naya", "nava", "navo", "customer", "grahak", "add", "a", "the", "my", "is", "hai", "che", "name", "naam",
+        "with", "phone", "number", "mobile", "and", "ka", "ki", "ke", "as", "please", "jodo", "umero", "create",
+        "नया", "नए", "ग्राहक", "जोड़ो", "नाम", "है", "का", "की", "कस्टमर", "न्यू", "नेम", "एड", "ऐड", "उसका",
+        "નવો", "નવા", "નવી", "ગ્રાહક", "ઉમેરો", "નામ", "છે", "કસ્ટમર", "ન્યૂ", "નેમ", "એડ", "એનું", "તેનું", "ગ્રાહકોમાં",
+    }
+
+    @classmethod
+    def extract_new_customer_name(cls, raw: str):
+        """"add customer Nandini", "naam Nandini hai", "નંદની નામનો ગ્રાહક", "એનું નામ નંદની છે"."""
+        patterns = [
+            r"(?:name|naam|nam|नाम|નામ|નેમ|नेम)\s*(?:is|hai|che|છે|है|:)?\s+([^\s,।.]+)(?:\s+([A-Za-z]+))?",
+            r"([^\s,।.]+)\s+(?:નામનો|નામની|નામના|नाम का|नाम की|नाम के|naam ka|naam ki|named)",
+            r"(?:customer|grahak|ग्राहक|ગ્રાહક|કસ્ટમર|कस्टमर)\s+([^\s,।.]+)(?:\s+([A-Za-z]+))?",
+            r"(?:add|એડ|एड)\s+([A-Za-z]+)(?:\s+([A-Za-z]+))?\s+(?:as\s+)?(?:customer|grahak)",
+        ]
+        for pat in patterns:
+            for m in re.finditer(pat, raw, re.IGNORECASE):
+                first = (m.group(1) or "").strip(" ,.?!।")
+                if not first or first.lower() in cls._NEW_NAME_STOP or first in cls._NEW_NAME_STOP or re.search(r"\d", first):
+                    continue
+                parts = [first]
+                second = m.group(2) if m.lastindex and m.lastindex >= 2 else None
+                if second and second.lower() not in cls._NEW_NAME_STOP and not re.search(r"\d", second):
+                    parts.append(second)
+                return " ".join(to_display_name(p) if has_indic(p) else p.capitalize() for p in parts)
+        return None
 
     @classmethod
     def _extract_customer_entities(cls, raw: str, lower: str, lang: str) -> Tuple[dict, str, str]:
-        # Customer name
-        name = "Amit Shah"
-        m_name = re.search(r"(?:customer|grahak|ग्राहक|ગ્રાહક)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)", raw, re.IGNORECASE)
-        if m_name:
-            name = m_name.group(1).title()
-
-        # Phone
-        phone = "+91 98981 23456"
+        name = cls.extract_new_customer_name(raw)
+        phone = ""
         m_phone = re.search(r"(\+?\d{10,12})", raw.replace(" ", ""))
         if m_phone:
             p = m_phone.group(1)
-            if len(p) == 10:
-                phone = f"+91 {p[:5]} {p[5:]}"
-            else:
-                phone = p
-
-        extracted_data = {
-            "name": name,
-            "phone": phone,
-            "business_notes": "Added via Voice Assistant",
-        }
-
-        if "gu" in lang:
-            prompt = f"નવા ગ્રાહક '{name}' (ફોન: {phone}) ઉમેરો. શું હું સેવ કરું?"
-            spoken = f"નવા ગ્રાહક {name} ઉમેરવા છે?"
-        elif "hi" in lang:
-            prompt = f"नया ग्राहक '{name}' (फ़ोन: {phone}) जोड़ें। क्या मैं इसे सेव करूँ?"
-            spoken = f"नया ग्राहक {name} जोड़ना है?"
-        else:
-            prompt = f"Add new customer '{name}' with phone {phone}. Should I save this customer?"
-            spoken = f"Add new customer {name} with phone {phone}. Should I save?"
-
-        return extracted_data, prompt, spoken
+            phone = f"+91 {p[:5]} {p[5:]}" if len(p) == 10 else p
+        data = {"name": name, "phone": phone, "business_notes": "Added by voice"}
+        if not name:
+            data["missing"] = ["name"]
+        return data, "", ""
 
     # ------------------------------------------------------------------ khata
     @classmethod
@@ -468,6 +466,8 @@ class NLPParser:
 
         if _contains_any(lower, raw, KHATA_LIST_DUES_WORDS):
             return "list_dues"
+        if _contains_any(lower, raw, KHATA_SETTLE_WORDS):
+            return "record_payment"
         if not has_amount and (_contains_any(lower, raw, KHATA_BALANCE_WORDS) or (asks_how_much and (is_payment or is_credit))):
             return "check_balance"
         if is_payment and not asks_how_much:
@@ -531,10 +531,11 @@ class NLPParser:
     def _extract_khata_entry_entities(cls, raw: str, lower: str, lang: str, intent: str) -> Tuple[dict, str, str]:
         name = cls.extract_khata_name(raw)
         amount = cls.extract_amount(raw)
+        settle = intent == "record_payment" and amount is None and _contains_any(lower, raw, KHATA_SETTLE_WORDS)
         missing = []
         if not name:
             missing.append("customer_name")
-        if amount is None:
+        if amount is None and not settle:
             missing.append("amount")
 
         data: dict[str, Any] = {
@@ -543,6 +544,8 @@ class NLPParser:
             "entry_type": "credit" if intent == "add_udhar" else "payment",
             "note": raw.strip()[:140],
         }
+        if settle:
+            data["settle"] = True
         if missing:
             data["missing"] = missing
             if "customer_name" in missing:
@@ -555,7 +558,9 @@ class NLPParser:
                 spoken = f"How much should I write for {name}? Please say the amount too."
             return data, "", spoken
 
-        # Basic prompt; BusinessService.enrich_khata() rewrites it with the live balance.
+        if amount is None:  # settle: the agent fills in the pending balance
+            return data, "", ""
+        # Basic prompt; the agent rewrites it with the live balance.
         if intent == "add_udhar":
             prompt = f"Add ₹{amount:,.0f} udhar to {name}'s khata. Should I save it?"
         else:

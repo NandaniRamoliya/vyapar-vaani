@@ -28,6 +28,23 @@ export interface Reminder {
   reminder_time: string;
   status: 'pending' | 'completed';
   created_at: string;
+  kind?: 'call' | 'payment' | 'general';
+  due_at?: string;
+  phone?: string;
+  balance?: number | null;
+}
+
+export interface TodaySummary {
+  sales_today: number;
+  orders_today: number;
+  collected_today: number;
+  udhar_today: number;
+  total_outstanding: number;
+  customers_with_dues: number;
+  top_dues: { customer_id: string; customer_name: string; phone: string; balance: number; days_since_payment: number | null; never_paid: boolean }[];
+  reminders: Reminder[];
+  overdue_count: number;
+  recent: { type: 'payment' | 'udhar' | 'order'; customer_name: string; amount: number; created_at: string; detail?: string }[];
 }
 
 export interface VoiceInteraction {

@@ -23,6 +23,7 @@ class OrderBase(BaseModel):
 
 class OrderCreate(OrderBase):
     customer_id: Optional[str] = None
+    payment_mode: Optional[str] = "paid"  # "paid" or "udhar" (adds it to the customer's khata)
 
 class Order(OrderBase):
     id: str
@@ -38,6 +39,7 @@ class ReminderBase(BaseModel):
 class ReminderCreate(ReminderBase):
     customer_id: Optional[str] = None
     customer_name: Optional[str] = None
+    kind: Optional[str] = "general"  # call / payment / general
 
 class Reminder(ReminderBase):
     id: str
@@ -61,6 +63,7 @@ class ProcessVoiceRequest(BaseModel):
     transcript: str = Field(..., description="Speech-to-text transcript from user")
     language: str = Field(default="en-IN", description="Language code: en-IN, hi-IN, gu-IN")
     auto_execute: bool = Field(default=False, description="Execute action immediately without extra confirmation step")
+    client_time: Optional[str] = Field(default=None, description="Phone's local time (ISO), so 'in 2 minutes' means the user's 2 minutes")
     context: Optional[dict[str, Any]] = Field(default=None, description="Conversation memory kept by the client (last customer, pending question, last action)")
 
 class ConfirmActionRequest(BaseModel):

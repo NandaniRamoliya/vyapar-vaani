@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { LanguageCode } from '../types';
 import { speakable } from '../utils/lang';
+import { pickVoice } from '../utils/speech';
 
 interface UseVoiceOptions {
   language: LanguageCode;
   onFinalTranscript?: (transcript: string) => void;
+  /** The mic closed by itself without hearing anything (used to end a hands-free conversation). */
+  onNoSpeech?: () => void;
 }
 
 interface ListenOptions {
@@ -17,25 +20,7 @@ interface ListenOptions {
 // we listen one utterance at a time and let the engine end it on a pause.
 const IS_MOBILE = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-// Prefer warm, natural Indian voices when the device has them.
-const PREFERRED_VOICE_NAMES = ['swara', 'neerja', 'dhwani', 'heera', 'kalpana', 'lekha', 'aditi', 'natural', 'google'];
-
-function pickVoice(voices: SpeechSynthesisVoice[], lang: LanguageCode): SpeechSynthesisVoice | undefined {
-  const target = lang.toLowerCase();
-  const prefix = target.split('-')[0];
-  const exact = voices.filter((v) => v.lang.toLowerCase().replace('_', '-') === target);
-  const sameLang = voices.filter((v) => v.lang.toLowerCase().startsWith(prefix));
-  for (const pool of [exact, sameLang]) {
-    for (const key of PREFERRED_VOICE_NAMES) {
-      const v = pool.find((x) => x.name.toLowerCase().includes(key));
-      if (v) return v;
-    }
-    if (pool.length) return pool[0];
-  }
-  return undefined;
-}
-
-export function useVoice({ language, onFinalTranscript }: UseVoiceOptions) {
+export function useVoice({ language, onFinalTranscript, onNoSpeech }: UseVoiceOptions) {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
@@ -53,9 +38,11 @@ export function useVoice({ language, onFinalTranscript }: UseVoiceOptions) {
   const hasSubmittedRef = useRef(false);
   const silenceMsRef = useRef(2000);
 
+  const onNoSpeechRef = useRef(onNoSpeech);
   useEffect(() => {
     onFinalTranscriptRef.current = onFinalTranscript;
-  }, [onFinalTranscript]);
+    onNoSpeechRef.current = onNoSpeech;
+  }, [onFinalTranscript, onNoSpeech]);
 
   useEffect(() => {
     if (!('speechSynthesis' in window)) return;
@@ -181,6 +168,10 @@ export function useVoice({ language, onFinalTranscript }: UseVoiceOptions) {
           setIsListening(false);
           // Mobile engines end on their own after a pause: submit what we heard
           if (!hasSubmittedRef.current && accumulatedTextRef.current.trim()) finalizeSpeech();
+          else if (!hasSubmittedRef.current) {
+            hasSubmittedRef.current = true;
+            onNoSpeechRef.current?.();
+          }
         };
 
         recognitionRef.current = rec;

@@ -1,291 +1,225 @@
-import React, { useState } from 'react';
-import { 
-  BellRing, 
-  CheckCircle2, 
-  Clock, 
-  Calendar, 
-  Plus, 
-  Mic, 
-  Trash2, 
-  X,
-  User,
-  Check
-} from 'lucide-react';
-import { Reminder } from '../types';
+import React, { useEffect, useMemo, useState } from 'react';
+import { BellRing, Phone, MessageCircle, Check, Clock, Trash2, Plus, Mic, HandCoins, Bell, X, RotateCcw } from 'lucide-react';
+import { Customer, LanguageCode, Reminder } from '../types';
 import { api } from '../services/api';
+import { localNowISO, useT, whenLabel } from '../utils/i18n';
+import { askNotificationPermission } from '../utils/speech';
+import { formatINR, openWhatsApp, paymentReminderMessage } from '../utils/whatsapp';
 
-interface RemindersTabProps {
+interface Props {
   reminders: Reminder[];
-  onRefresh: () => void;
+  customers: Customer[];
+  language: LanguageCode;
+  onRefresh?: () => void;
   onOpenVoice: () => void;
 }
 
-export const RemindersTab: React.FC<RemindersTabProps> = ({ reminders, onRefresh, onOpenVoice }) => {
-  const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('all');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+const kindIcon = (k?: string) => (k === 'payment' ? HandCoins : k === 'call' ? Phone : Bell);
 
-  // Form State
-  const [title, setTitle] = useState('');
-  const [customerName, setCustomerName] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [time, setTime] = useState('11:00 AM');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+export const RemindersTab: React.FC<Props> = ({ reminders, customers, language, onRefresh, onOpenVoice }) => {
+  const tr = useT(language);
+  const [perm, setPerm] = useState<string>(() => ('Notification' in window ? Notification.permission : 'unsupported'));
+  const [formOpen, setFormOpen] = useState(false);
+  const [what, setWhat] = useState('');
+  const [when, setWhen] = useState('');
+  const [who, setWho] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [, setTick] = useState(0);
 
-  const handleToggle = async (id: string) => {
-    try {
-      await api.toggleReminder(id);
-      onRefresh();
-    } catch (e) {
-      console.error(e);
+  // keep "late" labels fresh
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  const groups = useMemo(() => {
+    const now = new Date();
+    const pending = reminders.filter((r) => r.status === 'pending');
+    const due = (r: Reminder) => new Date(r.due_at || `${r.reminder_date}T10:00:00`);
+    return {
+      late: pending.filter((r) => due(r) < now),
+      upcoming: pending.filter((r) => due(r) >= now),
+      done: reminders.filter((r) => r.status === 'completed').slice(0, 10),
+    };
+  }, [reminders]);
+
+  const preset = (kind: 'in10' | 'in1h' | 'eve' | 'tom') => {
+    const d = new Date();
+    if (kind === 'in10') d.setMinutes(d.getMinutes() + 10);
+    if (kind === 'in1h') d.setHours(d.getHours() + 1);
+    if (kind === 'eve') d.setHours(18, 0, 0, 0);
+    if (kind === 'tom') {
+      d.setDate(d.getDate() + 1);
+      d.setHours(10, 0, 0, 0);
     }
+    setWhen(localNowISO(d).slice(0, 16));
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Delete this reminder?')) {
-      try {
-        await api.deleteReminder(id);
-        onRefresh();
-      } catch (e) {
-        console.error(e);
-      }
-    }
-  };
-
-  const handleCreateReminder = async (e: React.FormEvent) => {
+  const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
-
-    setIsSubmitting(true);
+    if (!what.trim() || !when) return;
+    setSaving(true);
     try {
+      const d = new Date(when);
+      const cust = customers.find((c) => c.id === who);
       await api.createReminder({
-        title: title.trim(),
-        customer_name: customerName.trim() || undefined,
-        reminder_date: date,
-        reminder_time: time,
-        status: 'pending',
-      });
-      setIsModalOpen(false);
-      setTitle('');
-      setCustomerName('');
-      onRefresh();
-    } catch (err) {
-      console.error(err);
-      alert('Failed to add reminder');
+        title: what.trim(),
+        reminder_date: localNowISO(d).slice(0, 10),
+        // "05:30 PM" built by hand: toLocaleTimeString may insert a narrow no-break space the server can't parse
+        reminder_time: `${String(d.getHours() % 12 || 12).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} ${d.getHours() < 12 ? 'AM' : 'PM'}`,
+        customer_id: cust?.id,
+        customer_name: cust?.name,
+      } as Partial<Reminder>);
+      setFormOpen(false);
+      setWhat('');
+      setWhen('');
+      setWho('');
+      onRefresh?.();
     } finally {
-      setIsSubmitting(false);
+      setSaving(false);
     }
   };
 
-  const filteredReminders = reminders.filter((rem) => {
-    if (filter === 'pending') return rem.status === 'pending';
-    if (filter === 'completed') return rem.status === 'completed';
-    return true;
-  });
+  const act = async (fn: () => Promise<unknown>) => {
+    await fn().catch(() => {});
+    onRefresh?.();
+  };
 
-  return (
-    <div className="space-y-5">
-      {/* Top Action Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h3 className="text-base font-bold text-slate-900">Follow-up Reminders</h3>
-          <p className="text-xs text-slate-500">Scheduled client phone calls, catalogs and payment follow-ups</p>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          {/* Status Filters */}
-          <div className="flex items-center rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs">
-            {(['all', 'pending', 'completed'] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-3 py-1 font-semibold rounded-lg capitalize transition-colors cursor-pointer ${
-                  filter === f ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {f}
-              </button>
-            ))}
+  const card = (r: Reminder, tone: 'late' | 'upcoming' | 'done') => {
+    const Icon = kindIcon(r.kind);
+    return (
+      <div key={r.id} className={`bg-white rounded-3xl border p-4 shadow-xs ${tone === 'late' ? 'border-rose-300' : 'border-slate-200'} ${tone === 'done' ? 'opacity-60' : ''}`}>
+        <div className="flex items-start gap-3">
+          <div className={`w-10 h-10 shrink-0 rounded-2xl flex items-center justify-center ${tone === 'late' ? 'bg-rose-50 text-rose-600' : 'bg-amber-50 text-amber-600'}`}>
+            <Icon className="w-5 h-5" />
           </div>
-
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>New Reminder</span>
-          </button>
-
-          <button
-            onClick={onOpenVoice}
-            className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-          >
-            <Mic className="w-3.5 h-3.5" />
-            <span>Add via Voice</span>
+          <div className="min-w-0 flex-1">
+            <p className={`font-bold text-slate-900 leading-snug ${tone === 'done' ? 'line-through' : ''}`}>{r.title}</p>
+            <p className={`text-sm ${tone === 'late' ? 'text-rose-600 font-semibold' : 'text-slate-500'}`}>
+              {r.due_at ? whenLabel(language, r.due_at) : `${r.reminder_date} ${r.reminder_time}`}
+              {r.customer_name ? ` · ${r.customer_name}` : ''}
+              {r.balance && r.balance > 0 ? ` · ${tr('common.owes', { amt: formatINR(r.balance) })}` : ''}
+            </p>
+          </div>
+          <button onClick={() => window.confirm(`${tr('common.delete')}?`) && act(() => api.deleteReminder(r.id))} aria-label={tr('common.delete')} className="w-9 h-9 -mr-1 rounded-xl text-slate-300 hover:text-rose-600 flex items-center justify-center cursor-pointer">
+            <Trash2 className="w-4 h-4" />
           </button>
         </div>
-      </div>
-
-      {/* Reminders List */}
-      <div className="space-y-3">
-        {filteredReminders.length === 0 ? (
-          <div className="bg-white p-12 text-center text-slate-400 rounded-2xl border border-slate-200 text-xs">
-            No reminders found in this category. Click "+ New Reminder" or say "Remind me to call Rahul tomorrow at 11 AM"!
+        {tone !== 'done' ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {r.phone && (
+              <a href={`tel:${r.phone.replace(/[^0-9+]/g, '')}`} className="h-10 px-3 rounded-xl bg-indigo-600 text-white text-sm font-bold flex items-center gap-1.5">
+                <Phone className="w-4 h-4" /> {tr('common.call')}
+              </a>
+            )}
+            {r.customer_name && (
+              <button onClick={() => openWhatsApp(r.phone, r.balance && r.balance > 0 ? paymentReminderMessage(r.customer_name!, r.balance, language) : r.title)} className="h-10 px-3 rounded-xl bg-emerald-600 text-white text-sm font-bold flex items-center gap-1.5 cursor-pointer">
+                <MessageCircle className="w-4 h-4" /> {tr('common.whatsapp')}
+              </button>
+            )}
+            <button onClick={() => act(() => api.toggleReminder(r.id))} className="h-10 px-3 rounded-xl border-2 border-emerald-500 text-emerald-700 text-sm font-bold flex items-center gap-1.5 cursor-pointer">
+              <Check className="w-4 h-4" /> {tr('common.done')}
+            </button>
+            <button onClick={() => act(() => api.snoozeReminder(r.id, 10))} className="h-10 px-3 rounded-xl border border-slate-300 text-slate-700 text-sm font-bold flex items-center gap-1.5 cursor-pointer">
+              <Clock className="w-4 h-4" /> {tr('rem.snooze')}
+            </button>
           </div>
         ) : (
-          filteredReminders.map((rem) => {
-            const isDone = rem.status === 'completed';
-            return (
-              <div
-                key={rem.id}
-                className={`p-4 rounded-2xl border transition-all flex items-center justify-between ${
-                  isDone
-                    ? 'bg-slate-50/70 border-slate-200 opacity-60'
-                    : 'bg-white border-slate-200 shadow-xs hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center space-x-3.5">
-                  <button
-                    onClick={() => handleToggle(rem.id)}
-                    title={isDone ? 'Mark Pending' : 'Mark Completed'}
-                    className={`w-6 h-6 rounded-lg border flex items-center justify-center transition-colors cursor-pointer ${
-                      isDone
-                        ? 'bg-emerald-600 border-emerald-600 text-white'
-                        : 'border-slate-300 hover:border-indigo-600 bg-white'
-                    }`}
-                  >
-                    {isDone && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                  </button>
-
-                  <div>
-                    <h4 className={`text-sm font-bold ${isDone ? 'line-through text-slate-400' : 'text-slate-900'}`}>
-                      {rem.title}
-                    </h4>
-                    <div className="flex items-center space-x-3 text-xs text-slate-500 mt-1">
-                      <span className="flex items-center">
-                        <Calendar className="w-3.5 h-3.5 mr-1 text-slate-400" />
-                        {rem.reminder_date}
-                      </span>
-                      <span className="flex items-center font-medium text-indigo-600">
-                        <Clock className="w-3.5 h-3.5 mr-1" />
-                        {rem.reminder_time}
-                      </span>
-                      {rem.customer_name && (
-                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-semibold">
-                          {rem.customer_name}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                    isDone ? 'bg-slate-200 text-slate-600' : 'bg-amber-100 text-amber-800'
-                  }`}>
-                    {rem.status.toUpperCase()}
-                  </span>
-
-                  <button
-                    onClick={() => handleDelete(rem.id)}
-                    title="Delete reminder"
-                    className="p-1.5 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            );
-          })
+          <button onClick={() => act(() => api.toggleReminder(r.id))} className="mt-2 h-9 px-3 rounded-xl text-slate-500 text-sm font-semibold flex items-center gap-1.5 cursor-pointer">
+            <RotateCcw className="w-4 h-4" /> {tr('rem.reopen')}
+          </button>
         )}
       </div>
+    );
+  };
 
-      {/* Manual Reminder Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 shadow-2xl border border-slate-200 w-full max-w-md animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center">
-                  <BellRing className="w-4 h-4" />
-                </div>
-                <h3 className="font-bold text-slate-900 text-base">Schedule New Reminder</h3>
-              </div>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateReminder} className="mt-4 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Reminder Task</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Call Rahul to verify dispatch"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Related Customer (Optional)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Rahul Sharma"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Date</label>
-                  <input
-                    type="date"
-                    required
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Time</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="11:00 AM"
-                    value={time}
-                    onChange={(e) => setTime(e.target.value)}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-3 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-xs font-semibold text-white shadow-xs"
-                >
-                  {isSubmitting ? 'Scheduling...' : 'Save Reminder'}
-                </button>
-              </div>
-            </form>
-          </div>
+  return (
+    <div className="max-w-3xl mx-auto space-y-4">
+      {/* Alerts permission, in plain words */}
+      {perm !== 'granted' ? (
+        <div className="rounded-3xl bg-amber-50 border border-amber-200 p-4">
+          <p className="font-black text-amber-950 flex items-center gap-2">
+            <BellRing className="w-5 h-5" /> {tr('rem.allowTitle')}
+          </p>
+          <p className="mt-1 text-sm text-amber-900">{perm === 'denied' ? tr('rem.alertsBlocked') : tr('rem.allowText')}</p>
+          {perm === 'default' && (
+            <button onClick={async () => setPerm(await askNotificationPermission())} className="mt-3 h-11 px-4 rounded-2xl bg-amber-500 text-white font-bold cursor-pointer">
+              {tr('rem.allowBtn')}
+            </button>
+          )}
         </div>
+      ) : (
+        <p className="text-sm text-emerald-700 font-semibold flex items-center gap-2">
+          <Check className="w-4 h-4" /> {tr('rem.alertsOn')}
+        </p>
+      )}
+
+      {/* Speak or add */}
+      <div className="rounded-3xl bg-indigo-50 border border-indigo-200 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <p className="flex-1 text-sm text-indigo-950">{tr('rem.voiceHint')}</p>
+        <div className="flex gap-2 shrink-0">
+          <button onClick={onOpenVoice} className="h-11 px-4 rounded-2xl bg-indigo-600 text-white font-bold flex items-center gap-2 cursor-pointer">
+            <Mic className="w-4 h-4" /> {tr('nav.talk')}
+          </button>
+          <button onClick={() => setFormOpen(!formOpen)} aria-label={tr('rem.new')} className="h-11 w-11 rounded-2xl bg-white border border-indigo-200 text-indigo-700 flex items-center justify-center cursor-pointer">
+            {formOpen ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+          </button>
+        </div>
+      </div>
+
+      {formOpen && (
+        <form onSubmit={save} className="bg-white rounded-3xl border border-slate-200 p-4 space-y-3">
+          <p className="font-black text-slate-900">{tr('rem.new')}</p>
+          <label className="block text-sm font-semibold text-slate-600">
+            {tr('rem.what')}
+            <input value={what} onChange={(e) => setWhat(e.target.value)} placeholder={tr('rem.whatPh')} required className="mt-1 w-full h-12 px-3 rounded-xl border border-slate-300 text-base focus:outline-none focus:border-indigo-500" />
+          </label>
+          <div>
+            <p className="text-sm font-semibold text-slate-600">{tr('rem.when')}</p>
+            <div className="mt-1 flex flex-wrap gap-2">
+              {(['in10', 'in1h', 'eve', 'tom'] as const).map((k) => (
+                <button key={k} type="button" onClick={() => preset(k)} className="h-10 px-3 rounded-xl bg-slate-100 text-slate-700 text-sm font-bold cursor-pointer">
+                  {tr(`rem.${k}`)}
+                </button>
+              ))}
+            </div>
+            <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} required className="mt-2 w-full h-12 px-3 rounded-xl border border-slate-300 text-base focus:outline-none focus:border-indigo-500" />
+          </div>
+          <label className="block text-sm font-semibold text-slate-600">
+            {tr('rem.who')}
+            <select value={who} onChange={(e) => setWho(e.target.value)} className="mt-1 w-full h-12 px-3 rounded-xl border border-slate-300 bg-white text-base">
+              <option value="">{tr('rem.none')}</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="submit" disabled={saving} className="w-full h-12 rounded-2xl bg-slate-900 text-white font-bold cursor-pointer disabled:opacity-60">
+            {saving ? tr('common.saving') : tr('common.save')}
+          </button>
+        </form>
+      )}
+
+      {groups.late.length + groups.upcoming.length + groups.done.length === 0 && <p className="py-10 text-center text-slate-400">{tr('rem.empty')}</p>}
+      {groups.late.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="text-sm font-black text-rose-600 uppercase tracking-wide">{tr('rem.late')}</h3>
+          {groups.late.map((r) => card(r, 'late'))}
+        </section>
+      )}
+      {groups.upcoming.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="text-sm font-black text-slate-500 uppercase tracking-wide">{tr('rem.upcoming')}</h3>
+          {groups.upcoming.map((r) => card(r, 'upcoming'))}
+        </section>
+      )}
+      {groups.done.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="text-sm font-black text-slate-400 uppercase tracking-wide">{tr('rem.finished')}</h3>
+          {groups.done.map((r) => card(r, 'done'))}
+        </section>
       )}
     </div>
   );

@@ -1,7 +1,8 @@
 import {
   DashboardStats, Order, Customer, Reminder, VoiceInteraction, VoiceProcessResult, LanguageCode,
-  KhataSummary, CustomerLedger, LedgerEntry, LedgerEntryType, AgentContext, VoiceSignature, ChainCheck,
+  KhataSummary, CustomerLedger, LedgerEntry, LedgerEntryType, AgentContext, VoiceSignature, ChainCheck, TodaySummary,
 } from '../types';
+import { localNowISO } from '../utils/i18n';
 
 const API_BASE = '/api';
 
@@ -21,7 +22,7 @@ export const api = {
     const res = await fetch(`${API_BASE}/voice/process`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transcript, language, auto_execute: autoExecute, context: context || {} }),
+      body: JSON.stringify({ transcript, language, auto_execute: autoExecute, context: context || {}, client_time: localNowISO() }),
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.message || 'Failed to process voice command');
@@ -115,6 +116,22 @@ export const api = {
     const data = await res.json();
     if (!data.success) throw new Error(data.message || 'Failed to create reminder');
     return data.data;
+  },
+
+  async getToday(): Promise<TodaySummary> {
+    const res = await fetch(`${API_BASE}/dashboard/today?now=${encodeURIComponent(localNowISO())}`);
+    const data = await res.json();
+    return data.data;
+  },
+
+  async getDueReminders(): Promise<Reminder[]> {
+    const res = await fetch(`${API_BASE}/reminders/due?now=${encodeURIComponent(localNowISO())}`);
+    const data = await res.json();
+    return data.data || [];
+  },
+
+  async snoozeReminder(reminderId: string, minutes = 10): Promise<void> {
+    await fetch(`${API_BASE}/reminders/${reminderId}/snooze?minutes=${minutes}&now=${encodeURIComponent(localNowISO())}`, { method: 'PATCH' });
   },
 
   async toggleReminder(reminderId: string): Promise<string> {

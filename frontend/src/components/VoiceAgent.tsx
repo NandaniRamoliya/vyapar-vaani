@@ -18,6 +18,7 @@ import {
   TrendingUp,
   ArrowRight,
   AlertCircle,
+  MessageSquarePlus,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { AgentContext, LanguageCode, SignatureRequest, VoiceProcessResult, VoiceSignature } from '../types';
@@ -26,6 +27,8 @@ import { useRecorder } from '../hooks/useRecorder';
 import { api } from '../services/api';
 import { classifyConfirmation } from '../utils/confirmWords';
 import { LANGS, LANG_ORDER } from '../utils/lang';
+import { t } from '../utils/i18n';
+import { askNotificationPermission } from '../utils/speech';
 import { playSoundboxChime } from '../utils/soundboxChime';
 import { playDoneTone, playListenTone, playRecordTone } from '../utils/sounds';
 import { ProofPlayer, ProofPlayerHandle } from './ProofPlayer';
@@ -61,7 +64,7 @@ interface Msg {
   id: string;
   from: 'me' | 'vaani';
   text: string;
-  kind?: 'confirm' | 'receipt' | 'khata' | 'dues' | 'hisaab' | 'proof' | 'signature';
+  kind?: 'confirm' | 'receipt' | 'khata' | 'dues' | 'hisaab' | 'proof' | 'signature' | 'alerts';
   pending?: VoiceProcessResult;
   khata?: KhataInfo;
   receipt?: Record<string, any>;
@@ -71,22 +74,58 @@ interface Msg {
   sig?: { request: SignatureRequest; status: SigStatus; signature?: VoiceSignature; error?: string };
 }
 
+const CHAT_KEY = 'vv_chat';
+interface SavedChat {
+  messages: Msg[];
+  resolved: Record<string, 'yes' | 'no' | 'expired'>;
+  ctx: AgentContext;
+}
+function loadChat(): SavedChat | null {
+  try {
+    const raw = localStorage.getItem(CHAT_KEY);
+    if (!raw) return null;
+    const chat = JSON.parse(raw) as SavedChat;
+    // Questions left unanswered before the reload can't be answered any more
+    for (const m of chat.messages || []) {
+      if (m.kind === 'confirm' && m.pending && !chat.resolved?.[m.pending.interaction_id]) {
+        chat.resolved = { ...(chat.resolved || {}), [m.pending.interaction_id]: 'expired' };
+      }
+      if (m.sig && (m.sig.status === 'recording' || m.sig.status === 'saving')) m.sig.status = 'ask';
+    }
+    if (chat.ctx) chat.ctx.pending = null;
+    return chat;
+  } catch (_e) {
+    return null;
+  }
+}
+function saveChat(chat: SavedChat) {
+  try {
+    localStorage.setItem(CHAT_KEY, JSON.stringify(chat));
+  } catch (_e) {
+    /* storage full or unavailable: the chat just won't survive a reload */
+  }
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 let msgSeq = 0;
 const newId = () => `m${Date.now()}_${msgSeq++}`;
 
 export const VoiceAgent: React.FC<Props> = ({ language, onLanguageChange, onRefreshData, onOpenKhata }) => {
   const L = LANGS[language];
-  const [messages, setMessages] = useState<Msg[]>([{ id: 'welcome', from: 'vaani', text: L.ui.welcome }]);
+  // Conversation survives reloads: the last messages, Vaani's memory and which cards were answered
+  const saved = useState(() => loadChat())[0];
+  const [messages, setMessages] = useState<Msg[]>(saved?.messages?.length ? saved.messages : [{ id: 'welcome', from: 'vaani', text: L.ui.welcome }]);
   const [thinking, setThinking] = useState(false);
   const [muted, setMuted] = useState(false);
   const [handsFree, setHandsFree] = useState(true);
   const [awaiting, setAwaiting] = useState<null | 'confirm' | 'answer'>(null);
-  const [resolved, setResolved] = useState<Record<string, 'yes' | 'no'>>({});
+  const [resolved, setResolved] = useState<Record<string, 'yes' | 'no' | 'expired'>>(saved?.resolved || {});
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [typed, setTyped] = useState('');
 
-  const ctxRef = useRef<AgentContext>({});
+  const ctxRef = useRef<AgentContext>(saved?.ctx || {});
+  const convoRef = useRef(false); // hands-free conversation in progress: reopen the mic after every reply
+  const missRef = useRef(0); // consecutive times nobody spoke
   const pendingRef = useRef<VoiceProcessResult | null>(null);
   const [hasPending, setHasPending] = useState(false); // mirrors pendingRef for rendering
   const handledRef = useRef<Set<string>>(new Set());
@@ -107,8 +146,13 @@ export const VoiceAgent: React.FC<Props> = ({ language, onLanguageChange, onRefr
 
   const recorder = useRecorder();
 
+  useEffect(() => {
+    saveChat({ messages: messages.slice(-50), resolved, ctx: { ...ctxRef.current, pending: ctxRef.current.pending } });
+  }, [messages, resolved]);
+
   const heard = (text: string) => {
     setAwaiting(null);
+    missRef.current = 0;
     const t = text.trim();
     if (!t) return;
     const pending = pendingRef.current;
@@ -116,7 +160,20 @@ export const VoiceAgent: React.FC<Props> = ({ language, onLanguageChange, onRefr
     else run(t);
   };
 
-  const voice = useVoice({ language, onFinalTranscript: heard });
+  // Nobody spoke: give it one more chance, then go quiet until the next tap
+  const noSpeech = () => {
+    const kind = awaitingRef.current;
+    setAwaiting(null);
+    missRef.current += 1;
+    if (convoRef.current && missRef.current < 2 && settingsRef.current.handsFree) {
+      listen(kind, kind === 'confirm' ? 1200 : 1800);
+    } else {
+      convoRef.current = false;
+      missRef.current = 0;
+    }
+  };
+
+  const voice = useVoice({ language, onFinalTranscript: heard, onNoSpeech: noSpeech });
   const { isListening, isSpeaking, interimTranscript, error: voiceError } = voice;
 
   const phase: 'recording' | 'listening' | 'thinking' | 'speaking' | 'idle' = recorder.isRecording
@@ -150,10 +207,18 @@ export const VoiceAgent: React.FC<Props> = ({ language, onLanguageChange, onRefr
     voice.speak(text, lang, onEnd);
   };
 
+  const awaitingRef = useRef<null | 'confirm' | 'answer'>(null);
   const listen = (kind: 'confirm' | 'answer' | null, silenceMs = 1800) => {
     setAwaiting(kind);
+    awaitingRef.current = kind;
     playListenTone();
     voice.startListening({ lang: settingsRef.current.language, silenceMs });
+  };
+
+  /** Hands-free conversation: after Vaani finishes speaking, listen again (until the person goes quiet). */
+  const continueConversation = () => {
+    if (!settingsRef.current.handsFree || !convoRef.current || document.hidden) return;
+    listen(pendingRef.current ? 'confirm' : ctxRef.current.pending ? 'answer' : null);
   };
 
   /** After Vaani asks something, open the mic for the answer (hands-free mode). */
@@ -234,8 +299,9 @@ export const VoiceAgent: React.FC<Props> = ({ language, onLanguageChange, onRefr
 
     const askedQuestion = !!res.context?.pending;
     talk(spoken, () => {
-      afterSpeak?.();
+      if (afterSpeak) return afterSpeak(); // playing a voice proof: don't record over it
       if (askedQuestion) listenForAnswer('answer');
+      else continueConversation();
     });
     onRefreshData?.();
   };
@@ -289,7 +355,7 @@ export const VoiceAgent: React.FC<Props> = ({ language, onLanguageChange, onRefr
       const out = await api.confirmVoiceAction(target.interaction_id, yes);
       if (!yes) {
         push({ from: 'vaani', text: out.spoken_response });
-        talk(out.spoken_response);
+        talk(out.spoken_response, continueConversation);
         return;
       }
       const r = out.executed_result || {};
@@ -313,6 +379,9 @@ export const VoiceAgent: React.FC<Props> = ({ language, onLanguageChange, onRefr
         });
       } else {
         push({ from: 'vaani', text: out.spoken_response });
+        if (target.intent === 'create_reminder' && 'Notification' in window && Notification.permission === 'default') {
+          push({ from: 'vaani', text: t(settingsRef.current.language, 'rem.allowText'), kind: 'alerts' });
+        }
       }
 
       const sigReq: SignatureRequest | null = r.signature_request || null;
@@ -322,7 +391,7 @@ export const VoiceAgent: React.FC<Props> = ({ language, onLanguageChange, onRefr
           if (settingsRef.current.handsFree) captureSignature(sigId, sigReq);
         });
       } else {
-        talk(out.spoken_response);
+        talk(out.spoken_response, continueConversation);
       }
       onRefreshData?.();
     } catch (e: any) {
@@ -346,7 +415,7 @@ export const VoiceAgent: React.FC<Props> = ({ language, onLanguageChange, onRefr
       const signature = await api.uploadSignature(req.entry_id, rec.blob, rec.durationMs, req.phrase, settingsRef.current.language);
       patch(msgId, (m) => ({ ...m, sig: { ...m.sig!, status: 'done', signature } }));
       playDoneTone();
-      talk(req.thanks);
+      talk(req.thanks, continueConversation);
       onRefreshData?.();
     } catch (e: any) {
       const denied = e?.name === 'NotAllowedError' || e?.name === 'SecurityError';
@@ -360,11 +429,16 @@ export const VoiceAgent: React.FC<Props> = ({ language, onLanguageChange, onRefr
   // ---------------------------------------------------------------- the big button
   const onOrb = () => {
     if (phase === 'recording') return recorder.stop();
-    if (phase === 'listening') return voice.stopListening();
+    if (phase === 'listening') {
+      if (!interimTranscript) convoRef.current = false; // tapped stop without speaking: end the conversation
+      return voice.stopListening();
+    }
     if (phase === 'thinking') return;
     if (phase === 'speaking') voice.stopSpeaking(); // barge in
 
     const kind = pendingRef.current ? 'confirm' : ctxRef.current.pending ? 'answer' : null;
+    convoRef.current = true;
+    missRef.current = 0;
     if (!greetedRef.current && !muted && !pendingRef.current) {
       greetedRef.current = true;
       const hello = { 'en-IN': 'Namaste ji, tell me.', 'hi-IN': 'नमस्ते जी, बोलिए।', 'gu-IN': 'નમસ્તે જી, બોલો.' }[language];
@@ -373,6 +447,16 @@ export const VoiceAgent: React.FC<Props> = ({ language, onLanguageChange, onRefr
     }
     greetedRef.current = true;
     listen(kind);
+  };
+
+  const newChat = () => {
+    voice.cancelListening();
+    voice.stopSpeaking();
+    convoRef.current = false;
+    dropPending();
+    ctxRef.current = {};
+    setResolved({});
+    setMessages([{ id: 'welcome', from: 'vaani', text: LANGS[settingsRef.current.language].ui.welcome }]);
   };
 
   const submitTyped = () => {
@@ -461,11 +545,23 @@ export const VoiceAgent: React.FC<Props> = ({ language, onLanguageChange, onRefr
                 </div>
               </div>
             )}
-            {!isEntry && res.intent !== 'create_order' && <p className="text-sm font-semibold text-slate-800">{res.confirmation_prompt}</p>}
+            {res.intent === 'add_customer' && (
+              <div className="text-sm">
+                <p className="text-lg font-black text-slate-900">{d.name}</p>
+                {d.phone && <p className="text-slate-500">{d.phone}</p>}
+              </div>
+            )}
+            {res.intent === 'create_reminder' && (
+              <div className="text-sm">
+                <p className="font-black text-slate-900">🔔 {d.title}</p>
+                <p className="text-slate-500">{d.when_text}</p>
+              </div>
+            )}
+            {/* other questions: the bubble above already says it, the card only carries the buttons */}
 
             {state ? (
               <p className={`mt-3 text-xs font-bold ${state === 'yes' ? 'text-emerald-600' : 'text-slate-500'}`}>
-                {state === 'yes' ? '✓ Saved' : '✕ Cancelled'}
+                {state === 'yes' ? `✓ ${t(language, 'his.st.executed')}` : state === 'expired' ? `⏱ ${t(language, 'his.st.pending_confirmation')}` : `✕ ${t(language, 'his.st.cancelled')}`}
               </p>
             ) : (
               <>
@@ -680,6 +776,21 @@ export const VoiceAgent: React.FC<Props> = ({ language, onLanguageChange, onRefr
         );
       }
 
+      case 'alerts':
+        return (
+          <div className="mt-2 rounded-3xl border border-amber-200 bg-amber-50 p-4">
+            <button
+              onClick={async () => {
+                await askNotificationPermission();
+                patch(m.id, (x) => ({ ...x, kind: undefined, text: t(language, 'rem.alertsOn') }));
+              }}
+              className="w-full h-12 rounded-2xl bg-amber-500 text-white font-bold flex items-center justify-center gap-2 cursor-pointer"
+            >
+              🔔 {t(language, 'rem.allowBtn')}
+            </button>
+          </div>
+        );
+
       case 'receipt': {
         const r = m.receipt!;
         return (
@@ -745,6 +856,9 @@ export const VoiceAgent: React.FC<Props> = ({ language, onLanguageChange, onRefr
               </button>
             ))}
           </div>
+          <button onClick={newChat} aria-label="New conversation" title="New conversation" className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-500 hover:bg-slate-100 cursor-pointer">
+            <MessageSquarePlus className="w-5 h-5" />
+          </button>
           <button onClick={() => setMuted(!muted)} aria-label={muted ? 'Unmute' : 'Mute'} className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-600 hover:bg-slate-100 cursor-pointer">
             {muted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
           </button>

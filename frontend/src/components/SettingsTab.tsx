@@ -1,94 +1,82 @@
-import React, { useEffect, useState } from 'react';
-import { ShieldCheck, Cpu, Database, CheckCircle2, Globe, Sparkles, Terminal } from 'lucide-react';
+import React, { useState } from 'react';
+import { Languages, BellRing, ShieldCheck, ShieldAlert, Lock, Smartphone, Trash2, Check } from 'lucide-react';
+import { ChainCheck, LanguageCode } from '../types';
 import { api } from '../services/api';
+import { LANGS, LANG_ORDER } from '../utils/lang';
+import { useT } from '../utils/i18n';
+import { askNotificationPermission } from '../utils/speech';
 
-export const SettingsTab: React.FC = () => {
-  const [settings, setSettings] = useState<any>(null);
+interface Props {
+  language: LanguageCode;
+  onLanguageChange: (lang: LanguageCode) => void;
+}
 
-  useEffect(() => {
-    api.getSettings().then(setSettings).catch(console.error);
-  }, []);
+/** Only what a shopkeeper needs: language, alerts, safety and privacy, in plain words. */
+export const SettingsTab: React.FC<Props> = ({ language, onLanguageChange }) => {
+  const tr = useT(language);
+  const [perm, setPerm] = useState<string>(() => ('Notification' in window ? Notification.permission : 'unsupported'));
+  const [chain, setChain] = useState<ChainCheck | null>(null);
+  const [cleared, setCleared] = useState(false);
 
+  const card = 'bg-white rounded-3xl border border-slate-200 p-5 shadow-xs';
   return (
-    <div className="space-y-6 max-w-4xl">
-      {/* Zero-Key Architecture Card */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6">
-        <div className="flex items-center space-x-3 mb-4">
-          <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
-            <ShieldCheck className="w-6 h-6" />
-          </div>
-          <div>
-            <h3 className="text-base font-bold text-slate-900">Build for Bharat Zero-Key Architecture</h3>
-            <p className="text-xs text-slate-500">Evaluator & Judge Ready: Runs 100% out-of-the-box without paid API keys</p>
-          </div>
+    <div className="max-w-2xl mx-auto space-y-4">
+      <section className={card}>
+        <h3 className="font-black text-slate-900 flex items-center gap-2"><Languages className="w-5 h-5 text-indigo-600" /> {tr('set.language')}</h3>
+        <p className="mt-1 text-sm text-slate-500">{tr('set.languageText')}</p>
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          {LANG_ORDER.map((c) => (
+            <button key={c} onClick={() => onLanguageChange(c)} className={`h-12 rounded-2xl font-bold cursor-pointer ${language === c ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700'}`}>
+              {LANGS[c].name}
+            </button>
+          ))}
         </div>
+      </section>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-            <div className="flex items-center space-x-2 text-xs font-bold text-slate-700 mb-1">
-              <Cpu className="w-4 h-4 text-indigo-600" />
-              <span>AI Extraction Engine</span>
-            </div>
-            <p className="text-xs text-slate-600">
-              Active Provider: <strong className="text-emerald-700">{settings?.active_ai_provider || 'Deterministic Multilingual NLP'}</strong>
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Deterministic regex & entity token parser guarantees zero downtime, zero cost, and immediate responses.
-            </p>
-          </div>
+      <section className={card}>
+        <h3 className="font-black text-slate-900 flex items-center gap-2"><BellRing className="w-5 h-5 text-amber-500" /> {tr('set.alerts')}</h3>
+        <p className="mt-1 text-sm text-slate-500">{perm === 'denied' ? tr('rem.alertsBlocked') : tr('rem.allowText')}</p>
+        {perm === 'granted' ? (
+          <p className="mt-3 text-sm font-bold text-emerald-700 flex items-center gap-1.5"><Check className="w-4 h-4" /> {tr('rem.alertsOn')}</p>
+        ) : perm === 'default' ? (
+          <button onClick={async () => setPerm(await askNotificationPermission())} className="mt-3 h-11 px-4 rounded-2xl bg-amber-500 text-white font-bold cursor-pointer">{tr('rem.allowBtn')}</button>
+        ) : null}
+      </section>
 
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-            <div className="flex items-center space-x-2 text-xs font-bold text-slate-700 mb-1">
-              <Database className="w-4 h-4 text-indigo-600" />
-              <span>Persistence Layer</span>
-            </div>
-            <p className="text-xs text-slate-600">
-              Active Storage: <strong className="text-slate-800">{settings?.database_type || 'SQLite Persistent Fallback'}</strong>
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Pre-seeded with realistic Indian small business records (Rahul Sharma, Priya Patel, Surat Wholesalers).
-            </p>
-          </div>
-        </div>
-      </div>
+      <section className={card}>
+        <h3 className="font-black text-slate-900 flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-emerald-600" /> {tr('set.safety')}</h3>
+        <button onClick={async () => setChain(await api.verifySignatures())} className="mt-3 h-11 px-4 rounded-2xl bg-slate-900 text-white font-bold cursor-pointer">{tr('set.checkNow')}</button>
+        {chain && (
+          <p className={`mt-3 text-sm font-semibold flex items-center gap-1.5 ${chain.valid ? 'text-emerald-700' : 'text-rose-700'}`}>
+            {chain.valid ? <ShieldCheck className="w-4 h-4" /> : <ShieldAlert className="w-4 h-4" />}
+            {chain.valid ? tr('kh.chainOk', { n: chain.checked }) : tr('kh.chainBad', { name: chain.customer_name || '' })}
+          </p>
+        )}
+      </section>
 
-      {/* Multilingual Support Details */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6">
-        <h3 className="text-base font-bold text-slate-900 mb-2">Supported Indian Dialects & Languages</h3>
-        <p className="text-xs text-slate-500 mb-4">
-          Built specifically for Tier-2 and Tier-3 Indian shopkeepers and distributors.
-        </p>
+      <section className={card}>
+        <h3 className="font-black text-slate-900 flex items-center gap-2"><Lock className="w-5 h-5 text-slate-600" /> {tr('set.privacy')}</h3>
+        <p className="mt-1 text-sm text-slate-500">{tr('set.privacyText')}</p>
+      </section>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50">
-            <p className="text-xs font-bold text-slate-900">English (India)</p>
-            <p className="text-[11px] text-slate-500 mt-1">"Add an order for Rahul. 20 shirts, total 15000 rupees."</p>
-          </div>
-          <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50">
-            <p className="text-xs font-bold text-slate-900">हिन्दी (Hindi / Hinglish)</p>
-            <p className="text-[11px] text-slate-500 mt-1">"राहुल के लिए 20 शर्ट्स का ऑर्डर जोड़ो कुल 15000 रुपये"</p>
-          </div>
-          <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50">
-            <p className="text-xs font-bold text-slate-900">ગુજરાતી (Gujarati / Gujlish)</p>
-            <p className="text-[11px] text-slate-500 mt-1">"રાહુલ માટે 20 શર્ટ નો ઓર્ડર ઉમેરો, કુલ 15000 રૂપિયા"</p>
-          </div>
-        </div>
-      </div>
+      <section className={card}>
+        <h3 className="font-black text-slate-900 flex items-center gap-2"><Smartphone className="w-5 h-5 text-indigo-600" /> {tr('set.install')}</h3>
+        <p className="mt-1 text-sm text-slate-500">{tr('set.installText')}</p>
+      </section>
 
-      {/* Quick Launch Commands */}
-      <div className="bg-slate-900 rounded-2xl p-6 text-white">
-        <div className="flex items-center space-x-2 text-xs font-bold text-indigo-400 mb-2">
-          <Terminal className="w-4 h-4" />
-          <span>Local Development Commands</span>
-        </div>
-        <pre className="text-xs font-mono bg-slate-950 p-4 rounded-xl text-slate-300 overflow-x-auto">
-{`# Start Backend (FastAPI on http://127.0.0.1:8000)
-cd backend && .\\venv\\Scripts\\python -m uvicorn app.main:app --reload
-
-# Start Frontend (Vite on http://localhost:3000)
-cd frontend && npm run dev`}
-        </pre>
-      </div>
+      <button
+        onClick={() => {
+          try {
+            localStorage.removeItem('vv_chat');
+          } catch (_e) {
+            /* storage unavailable */
+          }
+          setCleared(true);
+        }}
+        className="w-full h-12 rounded-2xl border border-slate-300 text-slate-600 font-bold flex items-center justify-center gap-2 cursor-pointer"
+      >
+        {cleared ? <Check className="w-5 h-5" /> : <Trash2 className="w-5 h-5" />} {tr('set.clearChat')}
+      </button>
     </div>
   );
 };

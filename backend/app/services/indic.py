@@ -59,6 +59,9 @@ _BIG = {
     "करोड़": 10000000, "करोड": 10000000, "કરોડ": 10000000, "crore": 10000000,
 }
 _PUNCT = " ,.?!।;:\"'()"
+# "das minute baad", "do ghante" -> numbers before time words count too
+_TIME_UNITS = {"minute", "minutes", "min", "mins", "ghante", "ghanta", "hour", "hours", "baje", "bje",
+               "मिनट", "घंटे", "घंटा", "बजे", "મિનિટ", "કલાક", "વાગ્યે", "વાગે"}
 
 
 def _is_multiplier(tok: str) -> bool:
@@ -72,7 +75,7 @@ def _base_value(tok: str, next_tok: Optional[str]) -> Optional[float]:
         return float(_INDIC_UNITS[tok])
     if tok in _FRACTIONS:
         return _FRACTIONS[tok]
-    if tok in _ROMAN_UNITS and next_tok is not None and _is_multiplier(next_tok):
+    if tok in _ROMAN_UNITS and next_tok is not None and (_is_multiplier(next_tok) or next_tok in _TIME_UNITS):
         return float(_ROMAN_UNITS[tok])
     return None
 
@@ -279,3 +282,32 @@ def best_name_match(text: str, customer_names: Iterable[str], threshold: float =
                     if score > best[0]:
                         best = (score, full)
     return best[1] if best[0] >= threshold else None
+
+
+# --------------------------------------------------------------------------- loanwords
+# Speech recognisers in hi-IN / gu-IN write English words in the local script:
+# "એડ ન્યૂ કસ્ટમર" = "add new customer". We add an English gloss so intent detection
+# understands them, without changing the original sentence.
+_LOANWORDS = {
+    "add": ["એડ", "ઍડ", "ऐड", "एड"], "new": ["ન્યૂ", "ન્યુ", "न्यू"], "customer": ["કસ્ટમર", "कस्टमर", "કસ્ટમરને", "कस्टमरको"],
+    "name": ["નેમ", "नेम"], "order": ["ઓર્ડર", "ऑर्डर", "आर्डर"], "payment": ["પેમેન્ટ", "पेमेंट"],
+    "deposit": ["ડિપોઝિટ", "ડીપોઝીટ", "डिपॉजिट", "डिपॉज़िट", "डिपोजिट"], "balance": ["બેલેન્સ", "बैलेंस"],
+    "reminder": ["રિમાઇન્ડર", "रिमाइंडर"], "remind": ["રિમાઇન્ડ", "रिमाइंड"], "call": ["કોલ", "कॉल", "ફોન", "फोन", "फ़ोन"],
+    "delete": ["ડિલીટ", "डिलीट"], "undo": ["અનડુ", "अनडू"], "cancel": ["કેન્સલ", "कैंसल"], "save": ["સેવ", "सेव"],
+    "total": ["ટોટલ", "टोटल"], "rupees": ["રૂપીઝ", "रुपीज"], "money": ["મની", "मनी"], "settle": ["સેટલ", "सेटल"],
+    "clear": ["ક્લિયર", "क्लियर"], "summary": ["સમરી", "समरी"], "credit": ["ક્રેડિટ", "क्रेडिट"], "minute": ["મિનિટ", "मिनट"],
+    "proof": ["પ્રૂફ", "प्रूफ"], "recording": ["રેકોર્ડિંગ", "रिकॉर्डिंग"], "help": ["હેલ્પ", "हेल्प"],
+}
+_GLOSS = {w: en for en, words in _LOANWORDS.items() for w in words}
+
+
+def english_gloss(text: str) -> str:
+    """'એડ ન્યૂ કસ્ટમર નેમ નંદિની' -> 'add new customer name'."""
+    out = []
+    for tok in text.split():
+        tok = tok.strip(_PUNCT)
+        for cand in [tok] + [tok[: -len(s)] for s in _INDIC_SUFFIXES if tok.endswith(s) and len(tok) > len(s) + 1]:
+            if cand in _GLOSS:
+                out.append(_GLOSS[cand])
+                break
+    return " ".join(out)

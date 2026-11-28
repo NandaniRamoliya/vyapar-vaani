@@ -72,6 +72,14 @@ def init_db():
     )
     ''')
 
+    # Reminders got a kind (call / payment / general) and an exact due time later on
+    cursor.execute("PRAGMA table_info(reminders)")
+    reminder_cols = {r[1] for r in cursor.fetchall()}
+    if "kind" not in reminder_cols:
+        cursor.execute("ALTER TABLE reminders ADD COLUMN kind TEXT DEFAULT 'general'")
+    if "due_at" not in reminder_cols:
+        cursor.execute("ALTER TABLE reminders ADD COLUMN due_at TEXT")
+
     # 5. Khata / Udhar Ledger Table
     # entry_type: 'credit'  -> goods given on udhar (customer owes more)
     #             'payment' -> money received / jama (customer owes less)
@@ -159,13 +167,16 @@ def seed_sample_data(cursor):
         orders_data
     )
 
+    today = datetime.now()
+    tomorrow = today + timedelta(days=1)
+    yesterday = today - timedelta(days=1)
     reminders_data = [
-        ("rem_1", "cust_1", "Rahul Sharma", "Call Rahul to verify dispatch of 50 shirts", "2026-11-28", "11:00 AM", "pending", now),
-        ("rem_2", "cust_2", "Priya Patel", "Send catalog for new festive collection", "2026-11-27", "04:30 PM", "pending", now),
-        ("rem_3", "cust_3", "Suresh Verma", "Payment follow-up for October delivery", "2026-11-26", "02:00 PM", "completed", now),
+        ("rem_1", "cust_1", "Rahul Sharma", "Call Rahul to confirm dispatch of 50 shirts", tomorrow.strftime("%Y-%m-%d"), "11:00 AM", "pending", now, "call", tomorrow.strftime("%Y-%m-%dT11:00:00")),
+        ("rem_2", "cust_2", "Priya Patel", "Collect payment from Priya Patel", tomorrow.strftime("%Y-%m-%d"), "04:30 PM", "pending", now, "payment", tomorrow.strftime("%Y-%m-%dT16:30:00")),
+        ("rem_3", "cust_3", "Suresh Verma", "Payment follow-up for October delivery", yesterday.strftime("%Y-%m-%d"), "02:00 PM", "completed", now, "payment", yesterday.strftime("%Y-%m-%dT14:00:00")),
     ]
     cursor.executemany(
-        'INSERT INTO reminders (id, customer_id, customer_name, title, reminder_date, reminder_time, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO reminders (id, customer_id, customer_name, title, reminder_date, reminder_time, status, created_at, kind, due_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         reminders_data
     )
 

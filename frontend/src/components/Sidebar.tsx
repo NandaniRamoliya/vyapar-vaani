@@ -12,6 +12,7 @@ import {
   BookOpen
 } from 'lucide-react';
 import { LanguageCode } from '../types';
+import { useT } from '../utils/i18n';
 
 interface SidebarProps {
   currentTab: string;
@@ -26,61 +27,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenVoice,
   language 
 }) => {
-  const getLabels = () => {
-    if (language === 'gu-IN') {
-      return {
-        voiceOS: 'વોઇસ ઓએસ',
-        overview: 'ડેશબોર્ડ',
-        orders: 'ઓર્ડર્સ',
-        customers: 'ગ્રાહકો',
-        khata: 'ખાતાવહી / ઉધાર',
-        reminders: 'રિમાઇન્ડર',
-        history: 'વોઇસ હિસ્ટ્રી',
-        settings: 'સેટિંગ્સ',
-        speakBtn: 'બોલીને આદેશ આપો',
-        shopName: 'નંદની ટેક્સટાઇલ્સ',
-        shopCity: 'સુરત, ગુજરાત',
-      };
-    }
-    if (language === 'hi-IN') {
-      return {
-        voiceOS: 'वॉइस ओएस',
-        overview: 'डैशबोर्ड',
-        orders: 'ऑर्डर्स',
-        customers: 'ग्राहक',
-        khata: 'खाता / उधार',
-        reminders: 'रिमाइंडर',
-        history: 'वॉइस हिस्ट्री',
-        settings: 'सेटिंग्स',
-        speakBtn: 'बोलकर आदेश दें',
-        shopName: 'नंदनी टेक्सटाइल्स',
-        shopCity: 'सूरत, गुजरात',
-      };
-    }
-    return {
-      voiceOS: 'Vaani (Voice)',
-      overview: 'Overview',
-      orders: 'Orders',
-      customers: 'Customers',
-      khata: 'Khata / Udhar',
-      reminders: 'Reminders',
-      history: 'Voice History',
-      settings: 'Settings',
-      speakBtn: 'Talk to Vaani',
-      shopName: 'Nandani Textiles',
-      shopCity: 'Surat, Gujarat',
-    };
+  const tr = useT(language);
+  const labels = {
+    voiceOS: tr('nav.voice'), overview: tr('nav.today'), orders: tr('nav.orders'), customers: tr('nav.customers'),
+    khata: tr('nav.khata'), reminders: tr('nav.reminders'), history: tr('nav.history'), settings: tr('nav.settings'),
+    speakBtn: tr('nav.talk'), shopName: tr('shop.name'), shopCity: tr('shop.city'),
   };
-
-  const labels = getLabels();
 
   const navItems = [
     { id: 'voice_os', label: labels.voiceOS, icon: Mic },
     { id: 'overview', label: labels.overview, icon: LayoutDashboard },
-    { id: 'orders', label: labels.orders, icon: ShoppingBag },
-    { id: 'customers', label: labels.customers, icon: Users },
     { id: 'khata', label: labels.khata, icon: BookOpen },
     { id: 'reminders', label: labels.reminders, icon: BellRing },
+    { id: 'orders', label: labels.orders, icon: ShoppingBag },
+    { id: 'customers', label: labels.customers, icon: Users },
     { id: 'history', label: labels.history, icon: History },
     { id: 'settings', label: labels.settings, icon: SettingsIcon },
   ];
@@ -102,7 +62,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 AI
               </span>
             </div>
-            <p className="text-xs text-slate-400">Build for Bharat</p>
+            <p className="text-xs text-slate-400">{labels.shopName}</p>
           </div>
         </div>
       </div>

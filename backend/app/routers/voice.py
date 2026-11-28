@@ -20,7 +20,7 @@ def process_voice_command(request: ProcessVoiceRequest):
         raise HTTPException(status_code=400, detail="Transcript cannot be empty")
 
     # Vaani understands the sentence (with conversation memory) and prepares the reply
-    parsed = VoiceAgent.handle(request.transcript, request.language, request.context)
+    parsed = VoiceAgent.handle(request.transcript, request.language, request.context, request.client_time)
     spoken_response = parsed["spoken_response"]
 
     conn = get_db_connection()

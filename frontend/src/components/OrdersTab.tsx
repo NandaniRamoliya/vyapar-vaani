@@ -1,359 +1,172 @@
-import React, { useState } from 'react';
-import { 
-  ShoppingBag, 
-  Search, 
-  Filter, 
-  CheckCircle2, 
-  Clock, 
-  Truck, 
-  XCircle,
-  Plus,
-  Mic,
-  ArrowUpDown,
-  Share2,
-  Trash2,
-  Download,
-  IndianRupee,
-  User,
-  Package,
-  Layers,
-  X
-} from 'lucide-react';
-import { Order } from '../types';
+import React, { useMemo, useState } from 'react';
+import { Search, Plus, X, MessageCircle, Trash2, Truck, Download, Mic } from 'lucide-react';
+import { LanguageCode, Order } from '../types';
 import { api } from '../services/api';
+import { ago, useT } from '../utils/i18n';
+import { SHOP_NAME, formatINR, openWhatsApp } from '../utils/whatsapp';
 
-interface OrdersTabProps {
+interface Props {
   orders: Order[];
+  language: LanguageCode;
   onRefresh: () => void;
   onOpenVoice: () => void;
 }
 
-export const OrdersTab: React.FC<OrdersTabProps> = ({ orders, onRefresh, onOpenVoice }) => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+const STATUS_CLS: Record<Order['status'], string> = {
+  pending: 'bg-amber-100 text-amber-800',
+  confirmed: 'bg-indigo-100 text-indigo-800',
+  delivered: 'bg-emerald-100 text-emerald-800',
+  cancelled: 'bg-slate-200 text-slate-600',
+};
 
-  // New Order Form State
-  const [newCustomer, setNewCustomer] = useState('');
-  const [newProduct, setNewProduct] = useState('');
-  const [newQuantity, setNewQuantity] = useState(1);
-  const [newAmount, setNewAmount] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+export const OrdersTab: React.FC<Props> = ({ orders, language, onRefresh, onOpenVoice }) => {
+  const tr = useT(language);
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<'all' | Order['status']>('all');
+  const [formOpen, setFormOpen] = useState(false);
+  const [customer, setCustomer] = useState('');
+  const [item, setItem] = useState('');
+  const [qty, setQty] = useState('1');
+  const [total, setTotal] = useState('');
+  const [udhar, setUdhar] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const handleStatusChange = async (orderId: string, newStatus: string) => {
-    try {
-      await api.updateOrderStatus(orderId, newStatus);
-      onRefresh();
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  const list = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return orders.filter(
+      (o) => (filter === 'all' || o.status === filter) && (!q || o.customer_name.toLowerCase().includes(q) || o.product_name.toLowerCase().includes(q)),
+    );
+  }, [orders, search, filter]);
 
-  const handleDelete = async (orderId: string) => {
-    if (window.confirm('Are you sure you want to delete this order?')) {
-      try {
-        await api.deleteOrder(orderId);
-        onRefresh();
-      } catch (e) {
-        console.error(e);
-      }
-    }
-  };
-
-  const handleCreateOrder = async (e: React.FormEvent) => {
+  const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCustomer.trim() || !newProduct.trim() || !newAmount) return;
-
-    setIsSubmitting(true);
+    if (!customer.trim() || !item.trim() || !Number(total)) return;
+    setSaving(true);
     try {
       await api.createOrder({
-        customer_name: newCustomer.trim(),
-        product_name: newProduct.trim(),
-        quantity: Number(newQuantity) || 1,
-        total_amount: Number(newAmount) || 0,
+        customer_name: customer.trim(),
+        product_name: item.trim(),
+        quantity: Number(qty) || 1,
+        total_amount: Number(total),
         status: 'confirmed',
-      });
-      setIsModalOpen(false);
-      setNewCustomer('');
-      setNewProduct('');
-      setNewQuantity(1);
-      setNewAmount('');
+        payment_mode: udhar ? 'udhar' : 'paid',
+      } as Partial<Order>);
+      setFormOpen(false);
+      setCustomer('');
+      setItem('');
+      setQty('1');
+      setTotal('');
+      setUdhar(false);
       onRefresh();
-    } catch (err) {
-      console.error(err);
-      alert('Failed to create order');
     } finally {
-      setIsSubmitting(false);
+      setSaving(false);
     }
   };
 
-  const handleWhatsAppShare = (order: Order) => {
-    const text = encodeURIComponent(
-      `Namaste *${order.customer_name}*,\n\nYour order details from Nandani Textiles:\n• *Product:* ${order.product_name}\n• *Quantity:* ${order.quantity} units\n• *Total Amount:* ₹${order.total_amount.toLocaleString('en-IN')}\n• *Status:* ${order.status.toUpperCase()}\n\nThank you for doing business with us!`
-    );
-    window.open(`https://wa.me/?text=${text}`, '_blank');
+  const remove = async (o: Order) => {
+    if (!window.confirm(tr('ord.confirmDelete'))) return;
+    try {
+      await api.deleteOrder(o.id);
+      onRefresh();
+    } catch (err: any) {
+      window.alert(err?.message);
+    }
   };
 
+  const sendBill = (o: Order) =>
+    openWhatsApp(undefined, `*${SHOP_NAME}*\n${o.customer_name}\n${o.quantity} × ${o.product_name}\nTotal: ${formatINR(o.total_amount)}\n🙏`);
+
   const exportCSV = () => {
-    const headers = ['Order ID,Customer,Product,Quantity,Total Amount,Status,Date'];
-    const rows = orders.map(
-      (o) =>
-        `"${o.id}","${o.customer_name}","${o.product_name}",${o.quantity},${o.total_amount},"${o.status}","${o.created_at}"`
-    );
-    const blob = new Blob([[...headers, ...rows].join('\n')], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
+    const rows = [['Date', 'Customer', 'Item', 'Qty', 'Total', 'Status'], ...list.map((o) => [o.created_at, o.customer_name, o.product_name, o.quantity, o.total_amount, o.status])];
+    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `VyaparVaani_Orders_${new Date().toISOString().split('T')[0]}.csv`;
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = `bills_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
   };
 
-  const filteredOrders = orders.filter((o) => {
-    const matchesSearch =
-      o.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.product_name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || o.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const statuses: ('all' | Order['status'])[] = ['all', 'pending', 'confirmed', 'delivered'];
 
   return (
-    <div className="space-y-5">
-      {/* Search and Filters Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center space-x-2 flex-1 max-w-md bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-          <Search className="w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search orders by customer or product..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="bg-transparent border-none text-xs focus:outline-none w-full text-slate-900"
-          />
+    <div className="max-w-4xl mx-auto space-y-4">
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex-1 flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-3 h-12">
+          <Search className="w-5 h-5 text-slate-400" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tr('common.search')} className="flex-1 bg-transparent text-base focus:outline-none" />
         </div>
+        <div className="flex gap-2">
+          <button onClick={onOpenVoice} className="h-12 px-4 rounded-2xl bg-indigo-600 text-white font-bold flex items-center gap-2 cursor-pointer">
+            <Mic className="w-5 h-5" /> <span className="hidden sm:inline">{tr('nav.talk')}</span>
+          </button>
+          <button onClick={() => setFormOpen(!formOpen)} className="h-12 px-4 rounded-2xl bg-slate-900 text-white font-bold flex items-center gap-2 cursor-pointer">
+            {formOpen ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />} {tr('ord.new')}
+          </button>
+          <button onClick={exportCSV} aria-label={tr('ord.download')} title={tr('ord.download')} className="h-12 w-12 rounded-2xl bg-white border border-slate-200 text-slate-600 flex items-center justify-center cursor-pointer">
+            <Download className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs">
-            {['all', 'pending', 'confirmed', 'delivered'].map((st) => (
-              <button
-                key={st}
-                onClick={() => setStatusFilter(st)}
-                className={`px-3 py-1 font-semibold rounded-lg capitalize transition-colors cursor-pointer ${
-                  statusFilter === st ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {st}
+      {formOpen && (
+        <form onSubmit={save} className="bg-white rounded-3xl border border-slate-200 p-4 grid grid-cols-2 gap-3">
+          <input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder={tr('ord.customer')} required className="col-span-2 h-12 px-3 rounded-xl border border-slate-300 text-base" />
+          <input value={item} onChange={(e) => setItem(e.target.value)} placeholder={tr('ord.item')} required className="col-span-2 h-12 px-3 rounded-xl border border-slate-300 text-base" />
+          <input value={qty} onChange={(e) => setQty(e.target.value)} type="number" min="1" inputMode="numeric" placeholder={tr('ord.qty')} className="h-12 px-3 rounded-xl border border-slate-300 text-base" />
+          <input value={total} onChange={(e) => setTotal(e.target.value)} type="number" min="1" inputMode="decimal" placeholder={tr('ord.total')} required className="h-12 px-3 rounded-xl border border-slate-300 text-base" />
+          <div className="col-span-2 grid grid-cols-2 gap-2">
+            {[false, true].map((u) => (
+              <button key={String(u)} type="button" onClick={() => setUdhar(u)} className={`h-11 rounded-xl font-bold text-sm cursor-pointer ${udhar === u ? (u ? 'bg-amber-500 text-white' : 'bg-emerald-600 text-white') : 'bg-slate-100 text-slate-600'}`}>
+                {u ? tr('ord.onUdhar') : tr('ord.payNow')}
               </button>
             ))}
           </div>
-
-          <button
-            onClick={exportCSV}
-            title="Export orders as CSV"
-            className="flex items-center space-x-1 px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Export</span>
+          <button type="submit" disabled={saving} className="col-span-2 h-12 rounded-2xl bg-slate-900 text-white font-bold cursor-pointer disabled:opacity-60">
+            {saving ? tr('common.saving') : tr('common.save')}
           </button>
+        </form>
+      )}
 
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>New Order</span>
+      <div className="flex gap-2 overflow-x-auto no-scrollbar">
+        {statuses.map((s) => (
+          <button key={s} onClick={() => setFilter(s)} className={`shrink-0 h-9 px-4 rounded-full text-sm font-bold cursor-pointer ${filter === s ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>
+            {s === 'all' ? tr('common.all') : tr(`ord.st.${s}`)}
           </button>
-
-          <button
-            onClick={onOpenVoice}
-            className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-          >
-            <Mic className="w-3.5 h-3.5" />
-            <span>Voice Order</span>
-          </button>
-        </div>
+        ))}
       </div>
 
-      {/* Orders Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider border-b border-slate-200">
-              <tr>
-                <th className="py-3 px-4">Order ID</th>
-                <th className="py-3 px-4">Customer</th>
-                <th className="py-3 px-4">Product</th>
-                <th className="py-3 px-4">Qty</th>
-                <th className="py-3 px-4">Total Amount</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
-                    No orders found matching criteria. Click "+ New Order" or say "Add order for Rahul"!
-                  </td>
-                </tr>
-              ) : (
-                filteredOrders.map((order) => (
-                  <tr key={order.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-3.5 px-4 font-mono text-[11px] text-slate-500">{order.id}</td>
-                    <td className="py-3.5 px-4 font-bold text-slate-900">{order.customer_name}</td>
-                    <td className="py-3.5 px-4 text-slate-700 font-medium">{order.product_name}</td>
-                    <td className="py-3.5 px-4 text-slate-900 font-semibold">{order.quantity}</td>
-                    <td className="py-3.5 px-4 font-bold text-slate-900">₹{order.total_amount.toLocaleString('en-IN')}</td>
-                    <td className="py-3.5 px-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                        order.status === 'confirmed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                        order.status === 'pending' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                        order.status === 'delivered' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                        'bg-slate-100 text-slate-600'
-                      }`}>
-                        {order.status.toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <div className="flex items-center justify-end space-x-1.5">
-                        <select
-                          value={order.status}
-                          onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                          className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-lg px-2 py-1 font-medium focus:outline-none cursor-pointer"
-                        >
-                          <option value="pending">Pending</option>
-                          <option value="confirmed">Confirmed</option>
-                          <option value="delivered">Delivered</option>
-                          <option value="cancelled">Cancelled</option>
-                        </select>
-
-                        <button
-                          onClick={() => handleWhatsAppShare(order)}
-                          title="Share WhatsApp bill with customer"
-                          className="p-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer"
-                        >
-                          <Share2 className="w-3.5 h-3.5" />
-                        </button>
-
-                        <button
-                          onClick={() => handleDelete(order.id)}
-                          title="Delete order"
-                          className="p-1.5 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Manual Order Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 shadow-2xl border border-slate-200 w-full max-w-md animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center">
-                  <ShoppingBag className="w-4 h-4" />
-                </div>
-                <h3 className="font-bold text-slate-900 text-base">Create Manual Order</h3>
+      {list.length === 0 && <p className="py-10 text-center text-slate-400">{tr('ord.empty')}</p>}
+      <div className="space-y-2">
+        {list.map((o) => (
+          <div key={o.id} className="bg-white rounded-3xl border border-slate-200 p-4 shadow-xs">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-black text-slate-900 truncate">{o.customer_name}</p>
+                <p className="text-slate-600">
+                  {o.quantity} × {o.product_name}
+                </p>
+                <p className="text-xs text-slate-400 mt-0.5">{ago(language, o.created_at)}</p>
               </div>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-              >
-                <X className="w-4 h-4" />
+              <div className="text-right shrink-0">
+                <p className="text-xl font-black text-slate-900">{formatINR(o.total_amount)}</p>
+                <span className={`inline-block mt-1 text-xs font-bold px-2 py-0.5 rounded-full ${STATUS_CLS[o.status]}`}>{tr(`ord.st.${o.status}`)}</span>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {o.status !== 'delivered' && o.status !== 'cancelled' && (
+                <button onClick={async () => { await api.updateOrderStatus(o.id, 'delivered'); onRefresh(); }} className="h-10 px-3 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-bold flex items-center gap-1.5 cursor-pointer">
+                  <Truck className="w-4 h-4" /> {tr('ord.markDelivered')}
+                </button>
+              )}
+              <button onClick={() => sendBill(o)} className="h-10 px-3 rounded-xl bg-emerald-600 text-white text-sm font-bold flex items-center gap-1.5 cursor-pointer">
+                <MessageCircle className="w-4 h-4" /> {tr('ord.sendBill')}
+              </button>
+              <button onClick={() => remove(o)} aria-label={tr('common.delete')} className="h-10 w-10 ml-auto rounded-xl text-slate-300 hover:text-rose-600 flex items-center justify-center cursor-pointer">
+                <Trash2 className="w-4 h-4" />
               </button>
             </div>
-
-            <form onSubmit={handleCreateOrder} className="mt-4 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Customer Name</label>
-                <div className="flex items-center border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-500">
-                  <User className="w-4 h-4 text-slate-400 mr-2" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Ramesh Patel"
-                    value={newCustomer}
-                    onChange={(e) => setNewCustomer(e.target.value)}
-                    className="w-full bg-transparent text-xs focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Product Description</label>
-                <div className="flex items-center border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-500">
-                  <Package className="w-4 h-4 text-slate-400 mr-2" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Pure Silk Sarees"
-                    value={newProduct}
-                    onChange={(e) => setNewProduct(e.target.value)}
-                    className="w-full bg-transparent text-xs focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Quantity</label>
-                  <div className="flex items-center border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-500">
-                    <Layers className="w-4 h-4 text-slate-400 mr-2" />
-                    <input
-                      type="number"
-                      required
-                      min={1}
-                      value={newQuantity}
-                      onChange={(e) => setNewQuantity(Number(e.target.value))}
-                      className="w-full bg-transparent text-xs focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Total Amount (₹)</label>
-                  <div className="flex items-center border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-500">
-                    <IndianRupee className="w-4 h-4 text-slate-400 mr-2" />
-                    <input
-                      type="number"
-                      required
-                      min={1}
-                      placeholder="15000"
-                      value={newAmount}
-                      onChange={(e) => setNewAmount(e.target.value)}
-                      className="w-full bg-transparent text-xs focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-3 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-xs font-semibold text-white shadow-xs"
-                >
-                  {isSubmitting ? 'Saving...' : 'Save Order'}
-                </button>
-              </div>
-            </form>
           </div>
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   );
 };

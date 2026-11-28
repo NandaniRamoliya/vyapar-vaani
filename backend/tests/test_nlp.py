@@ -37,21 +37,27 @@ def test_gujarati_order_extraction():
 def test_reminder_extraction():
     transcript = "Remind me to call Rahul tomorrow at 11 AM"
     result = NLPParser.parse(transcript, "en-IN")
-    
+
     assert result["intent"] == "create_reminder"
-    assert result["confirmation_required"] is True
     data = result["extracted_data"]
     assert "Rahul" in data["customer_name"]
+    assert data["kind"] == "call"
     assert data["reminder_time"] == "11:00 AM"
+    assert data["due_at"].endswith("T11:00:00")
 
 def test_customer_extraction():
     transcript = "Add customer Amit Shah with phone 9898123456"
     result = NLPParser.parse(transcript, "en-IN")
-    
+
     assert result["intent"] == "add_customer"
-    assert result["confirmation_required"] is True
     data = result["extracted_data"]
-    assert "Amit Shah" in data["name"]
+    assert data["name"] == "Amit Shah"
+    assert data["phone"] == "+91 98981 23456"
+
+def test_customer_without_name_is_not_invented():
+    data = NLPParser.parse("Add a new customer", "en-IN")["extracted_data"]
+    assert data["name"] is None and data["missing"] == ["name"]
+    assert data["phone"] == ""
 
 def test_query_intents():
     result = NLPParser.parse("Show today's pending orders", "en-IN")

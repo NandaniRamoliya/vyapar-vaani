@@ -167,6 +167,36 @@ T: dict[str, dict[str, list[str]]] = {
         "hi": ["उस एंट्री पर ग्राहक की आवाज़ का साइन है, इसलिए हटा नहीं सकती। बराबर करने के लिए जमा एंट्री कर दीजिए।"],
         "gu": ["એ એન્ટ્રી પર ગ્રાહકની અવાજની સહી છે, એટલે કાઢી નહીં શકું. સરભર કરવા જમા એન્ટ્રી કરો."],
     },
+    # ------------------------------------------------------------------ customers
+    "ask_customer_name": {
+        "en": ["Sure. What is the new customer's name?", "Okay, what's their name?"],
+        "hi": ["ज़रूर। नए ग्राहक का नाम क्या है?", "ठीक है, उनका नाम बताइए?"],
+        "gu": ["ચોક્કસ. નવા ગ્રાહકનું નામ શું છે?", "સારું, એમનું નામ કહો?"],
+    },
+    "confirm_customer": {
+        "en": ["Add {name} as a new customer{phone_part}?"],
+        "hi": ["{name} को नए ग्राहक के रूप में जोड़ दूँ{phone_part}?"],
+        "gu": ["{name} ને નવા ગ્રાહક તરીકે ઉમેરી દઉં{phone_part}?"],
+    },
+    "customer_exists": {
+        "en": ["{name} is already in your customer list."],
+        "hi": ["{name} पहले से आपके ग्राहकों में हैं।"],
+        "gu": ["{name} પહેલેથી તમારા ગ્રાહકોમાં છે."],
+    },
+    # ------------------------------------------------------------------ reminders
+    "rem_title_payment": {"en": ["Collect payment from {name}"], "hi": ["{name} से पैसे लेने हैं"], "gu": ["{name} પાસેથી પૈસા લેવાના છે"]},
+    "rem_title_call": {"en": ["Call {name}"], "hi": ["{name} को फ़ोन करना है"], "gu": ["{name} ને ફોન કરવાનો છે"]},
+    "rem_balance": {"en": [" ({bal} pending)"], "hi": [" ({bal} बाकी)"], "gu": [" ({bal} બાકી)"]},
+    "confirm_reminder": {
+        "en": ["I'll remind you {when}: {title}. Okay?", "Reminder {when}: {title}. Shall I set it?"],
+        "hi": ["मैं आपको {when} याद दिलाऊँगी: {title}। ठीक है?"],
+        "gu": ["હું તમને {when} યાદ અપાવીશ: {title}. બરાબર?"],
+    },
+    "reminder_saved": {
+        "en": ["Done. I'll remind you {when}.", "Reminder set for {when}."],
+        "hi": ["हो गया। मैं {when} याद दिला दूँगी।"],
+        "gu": ["થઈ ગયું. હું {when} યાદ અપાવી દઈશ."],
+    },
     # ------------------------------------------------------------------ small talk
     "greet": {
         "en": ["Namaste! Tell me, what should I write?", "Namaste ji! I'm listening."],

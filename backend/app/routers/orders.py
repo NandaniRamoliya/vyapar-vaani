@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from app.models.schemas import Order, OrderCreate, ApiResponse
 from app.database.db import get_db_connection
+from app.services import khata
 
 router = APIRouter(prefix="/api/orders", tags=["Orders"])
 
@@ -39,17 +40,24 @@ def create_manual_order(order: OrderCreate):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     order_id = f"ord_{uuid.uuid4().hex[:8]}"
 
+    # Link to the customer book ("Rahul" -> Rahul Sharma), creating the customer if new
+    customer_id, customer_name = order.customer_id, order.customer_name
+    if not customer_id and customer_name.strip():
+        customer_id, customer_name = khata.get_or_create_customer(cursor, customer_name, note="Added from a bill")
     cursor.execute('''
         INSERT INTO orders (id, customer_id, customer_name, product_name, quantity, total_amount, status, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (order_id, order.customer_id, order.customer_name, order.product_name, order.quantity, order.total_amount, order.status, now))
+    ''', (order_id, customer_id, customer_name, order.product_name, order.quantity, order.total_amount, order.status, now))
+    if order.payment_mode == "udhar" and order.total_amount > 0 and customer_id:
+        khata.add_entry(cursor, customer_id, customer_name, "credit", order.total_amount,
+                        note=f"Bill: {order.quantity} {order.product_name}", source="order", order_id=order_id)
     conn.commit()
     conn.close()
 
     return ApiResponse(
         success=True, 
         message="Order created successfully", 
-        data={"id": order_id, **order.model_dump(), "created_at": now}
+        data={"id": order_id, **order.model_dump(), "customer_id": customer_id, "customer_name": customer_name, "created_at": now}
     )
 
 @router.patch("/{order_id}/status", response_model=ApiResponse)

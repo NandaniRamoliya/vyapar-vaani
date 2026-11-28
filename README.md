@@ -31,6 +31,14 @@ Vaani is a voice agent for the shop counter that talks like a person. It runs on
 | "ભૂલ થઈ ગઈ, કાઢી નાખો" | Undoes the last entry (but never a voice-signed one) |
 | "આજનો હિસાબ" | Day's sales, udhar given, cash collected, and who to chase tomorrow, in Gujarati |
 
+## Made for shopkeepers, not techies
+
+- **The whole app speaks your language.** Pick EN / हिं / ગુ and every screen switches: Today, Khata, Reminders, Bills, Customers and Settings.
+- **A "Today" screen instead of a dashboard.** Four plain numbers: *sold today*, *money received*, *udhar given*, *total udhar in market*. Then today's tasks with Call / Done buttons, who to collect from with a WhatsApp button, and "what happened" written as sentences.
+- **A real conversation.** Tap once and keep talking: the mic reopens after every reply and closes by itself after silence. Vaani remembers the last customer ("uska"), asks for missing details, understands **"Priya ke liye bhi"** (same again for Priya) and **"aur 500"**, and the chat survives a reload.
+- **Same meaning, different words.** *deposit / deposited / add money / jama / जमा / ડિપોઝિટ* all mean "money received". *le gaya / took / માલ લઈ ગયા* mean udhar. *"pura hisaab clear"* settles the full balance. English words spoken in Gujarati or Hindi script (*એડ ન્યૂ કસ્ટમર*) are understood too.
+- **Reminders that actually remind.** *"10 मिनट बाद याद दिलाना"*, *"kal subah 10 baje Rahul ko call karna"*, *"કાલે સાંજે 5 વાગ્યે"*. When it's time, Vaani **rings, speaks the reminder, vibrates and shows a phone notification**, with one-tap **Call** (opens the dialer), **WhatsApp** (pre-filled with the pending balance), **Done** and **10 min later**. The app must be open, either on screen or in the background; a fully closed app can't ring yet (that needs push notifications, planned for the finale).
+
 ## Why this is new
 
 1. **Voice Signature (bol ke khata, bol ke pakka).** The customer confirms udhar in their own voice, and it becomes playable proof that works for people who can't read or write. A typing app cannot copy this.
@@ -100,10 +108,12 @@ Best on **Chrome for Android**, which has Hindi and Gujarati speech built in. Sa
 
 ```bash
 cd backend
-python -m pytest -q        # 57 tests
+python -m pytest -q        # 79 tests
 ```
 They cover:
-- Multi-turn conversations in English, Hindi and Gujarati
+- Multi-turn conversations in English, Hindi and Gujarati, including the Gujarati "add customer → her name is Nandini" follow-up
+- Synonyms (deposit / add money / jama), settling a full balance, "Priya ke liye bhi" continuations
+- Reminder times in three languages, and reminders becoming due, snoozed and completed
 - Who-paid-whom grammar, pronoun memory, and undo
 - Indic number words and cross-script name matching
 - Voice-signature upload and playback, plus the tamper checks: an edited amount or a swapped recording breaks the chain
@@ -135,6 +145,8 @@ Key endpoints:
 | `GET` | `/api/khata`, `/api/khata/{customer_id}` |
 | `POST` | `/api/khata/entries/{id}/signature` |
 | `GET` | `/api/signatures/{id}/audio`, `/api/signatures/verify` |
+| `GET` | `/api/dashboard/today`, `/api/reminders/due` |
+| `PATCH` | `/api/reminders/{id}/snooze`, `/api/reminders/{id}/toggle` |
 
 Full docs at `http://127.0.0.1:8000/docs`.
 

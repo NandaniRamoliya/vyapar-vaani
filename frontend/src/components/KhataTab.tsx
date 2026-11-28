@@ -18,7 +18,8 @@ import {
 } from 'lucide-react';
 import { ChainCheck, CustomerLedger, KhataSummary, LanguageCode, LedgerEntryType } from '../types';
 import { api } from '../services/api';
-import { dueAgeLabel, formatINR, openWhatsApp, paymentReminderMessage, shareVoiceProof } from '../utils/whatsapp';
+import { formatINR, openWhatsApp, paymentReminderMessage, shareVoiceProof } from '../utils/whatsapp';
+import { useT } from '../utils/i18n';
 import { ProofPlayer } from './ProofPlayer';
 
 interface KhataTabProps {
@@ -31,9 +32,13 @@ interface KhataTabProps {
 type Filter = 'dues' | 'all' | 'settled';
 
 const balanceClass = (b: number) => (b > 0 ? 'text-rose-600' : b < 0 ? 'text-sky-600' : 'text-emerald-600');
-const balanceLabel = (b: number) => (b > 0 ? 'Balance due' : b < 0 ? 'Advance' : 'Settled');
+
 
 export const KhataTab: React.FC<KhataTabProps> = ({ onOpenVoice, onRefresh, refreshKey, language = 'en-IN' }) => {
+  const tr = useT(language);
+  const balanceLabel = (b: number) => (b > 0 ? tr('common.owes', { amt: '' }).trim() : b < 0 ? tr('common.advance', { amt: '' }).trim() : tr('common.settled'));
+  const dueAgeLabel = (days: number, neverPaid?: boolean) =>
+    neverPaid ? tr('common.unpaidDays', { n: days }) : days === 0 ? tr('common.paidToday') : tr('common.daysSincePay', { n: days });
   const [summary, setSummary] = useState<KhataSummary | null>(null);
   const [chain, setChain] = useState<ChainCheck | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -97,7 +102,7 @@ export const KhataTab: React.FC<KhataTabProps> = ({ onOpenVoice, onRefresh, refr
     if (!selectedId || !formType) return;
     const value = Number(amount);
     if (!Number.isFinite(value) || value <= 0) {
-      setFormError('Enter an amount greater than 0');
+      setFormError(tr('kh.amountErr'));
       return;
     }
     setSaving(true);
@@ -114,7 +119,7 @@ export const KhataTab: React.FC<KhataTabProps> = ({ onOpenVoice, onRefresh, refr
   };
 
   const deleteEntry = async (entryId: string) => {
-    if (!selectedId || !window.confirm('Delete this khata entry? The balance will be recalculated.')) return;
+    if (!selectedId || !window.confirm(tr('kh.confirmDelete'))) return;
     try {
       await api.deleteKhataEntry(entryId);
       await Promise.all([loadSummary(), loadLedger(selectedId)]);
@@ -132,9 +137,9 @@ export const KhataTab: React.FC<KhataTabProps> = ({ onOpenVoice, onRefresh, refr
       {/* Headline numbers */}
       <div className="grid grid-cols-3 gap-2 md:gap-4">
         {[
-          { label: 'Udhar outstanding', value: formatINR(summary?.total_outstanding || 0), cls: 'text-rose-600', icon: IndianRupee, tint: 'bg-rose-50 text-rose-600' },
-          { label: 'Customers with dues', value: String(summary?.customers_with_dues ?? 0), cls: 'text-slate-900', icon: Users, tint: 'bg-amber-50 text-amber-600' },
-          { label: 'Collected this month', value: formatINR(summary?.collected_this_month || 0), cls: 'text-emerald-600', icon: Wallet, tint: 'bg-emerald-50 text-emerald-600' },
+          { label: tr('kh.outstanding'), value: formatINR(summary?.total_outstanding || 0), cls: 'text-rose-600', icon: IndianRupee, tint: 'bg-rose-50 text-rose-600' },
+          { label: tr('kh.withDues'), value: String(summary?.customers_with_dues ?? 0), cls: 'text-slate-900', icon: Users, tint: 'bg-amber-50 text-amber-600' },
+          { label: tr('kh.collectedMonth'), value: formatINR(summary?.collected_this_month || 0), cls: 'text-emerald-600', icon: Wallet, tint: 'bg-emerald-50 text-emerald-600' },
         ].map(({ label, value, cls, icon: Icon, tint }) => (
           <div key={label} className="bg-white p-3 md:p-5 rounded-2xl border border-slate-200 shadow-xs">
             <div className="flex items-center justify-between gap-1">
@@ -149,7 +154,7 @@ export const KhataTab: React.FC<KhataTabProps> = ({ onOpenVoice, onRefresh, refr
       </div>
 
       {/* Voice signature integrity */}
-      {chain && (
+      {chain && (chain.checked > 0 || !chain.valid) && (
         <div
           className={`rounded-2xl px-4 py-3 flex items-center gap-3 border ${
             chain.valid ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-rose-50 border-rose-300 text-rose-900'
@@ -159,11 +164,11 @@ export const KhataTab: React.FC<KhataTabProps> = ({ onOpenVoice, onRefresh, refr
           <p className="text-xs flex-1">
             {chain.valid ? (
               <>
-                <b>{signedCount} voice-signed {signedCount === 1 ? 'entry' : 'entries'}</b> · tamper check passed. Every recording and amount still matches its fingerprint.
+                <b>{tr('kh.chainOk', { n: signedCount })}</b>
               </>
             ) : (
               <>
-                <b>Tampering detected</b> at {chain.customer_name}'s signature: {chain.problems?.join(', ')}.
+                <b>{tr('kh.chainBad', { name: chain.customer_name || '' })}</b> ({chain.problems?.join(', ')})
               </>
             )}
           </p>
@@ -171,7 +176,7 @@ export const KhataTab: React.FC<KhataTabProps> = ({ onOpenVoice, onRefresh, refr
             onClick={onOpenVoice}
             className="shrink-0 hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold cursor-pointer"
           >
-            <Mic className="w-3.5 h-3.5" /> Speak
+            <Mic className="w-3.5 h-3.5" /> {tr('nav.talk')}
           </button>
         </div>
       )}
@@ -184,7 +189,7 @@ export const KhataTab: React.FC<KhataTabProps> = ({ onOpenVoice, onRefresh, refr
               <Search className="w-4 h-4 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search customer or phone..."
+                placeholder={tr('common.search')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="flex-1 bg-transparent text-sm text-slate-800 focus:outline-none"
@@ -199,14 +204,14 @@ export const KhataTab: React.FC<KhataTabProps> = ({ onOpenVoice, onRefresh, refr
                     filter === f ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  {f === 'dues' ? 'With dues' : f === 'all' ? 'All' : 'Settled'}
+                  {f === 'dues' ? tr('kh.filterDues') : f === 'all' ? tr('common.all') : tr('kh.filterSettled')}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
-            {accounts.length === 0 && <p className="p-6 text-center text-xs text-slate-400">No khata accounts match.</p>}
+            {accounts.length === 0 && <p className="p-6 text-center text-xs text-slate-400">{tr('kh.noMatch')}</p>}
             {accounts.map((a) => (
               <button
                 key={a.customer_id}
@@ -227,7 +232,7 @@ export const KhataTab: React.FC<KhataTabProps> = ({ onOpenVoice, onRefresh, refr
                         {dueAgeLabel(a.days_since_payment, a.never_paid)}
                       </span>
                     ) : (
-                      a.phone || 'No phone saved'
+                      a.phone || tr('common.noPhone')
                     )}
                   </p>
                 </div>
@@ -245,18 +250,18 @@ export const KhataTab: React.FC<KhataTabProps> = ({ onOpenVoice, onRefresh, refr
           {!selected || !ledger ? (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-400 text-xs p-8">
               <BookOpen className="w-8 h-8 mb-2" />
-              Select a customer to see their khata
+              {tr('kh.pick')}
             </div>
           ) : (
             <>
               <div className="p-4 md:p-5 border-b border-slate-100">
                 <button onClick={() => setShowDetail(false)} className="lg:hidden -ml-1 mb-2 h-9 pr-3 flex items-center gap-1 text-sm font-semibold text-indigo-700 cursor-pointer">
-                  <ChevronLeft className="w-5 h-5" /> All customers
+                  <ChevronLeft className="w-5 h-5" /> {tr('kh.back')}
                 </button>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h3 className="text-lg font-black text-slate-900 truncate">{selected.customer_name}</h3>
-                    <p className="text-xs text-slate-500">{selected.phone || 'No phone saved'}</p>
+                    <p className="text-xs text-slate-500">{selected.phone || tr('common.noPhone')}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{balanceLabel(ledger.balance)}</p>
@@ -264,23 +269,23 @@ export const KhataTab: React.FC<KhataTabProps> = ({ onOpenVoice, onRefresh, refr
                   </div>
                 </div>
                 <div className="mt-2 flex gap-4 text-[11px] text-slate-500">
-                  <span>Total udhar: <b className="text-slate-800">{formatINR(ledger.total_credit)}</b></span>
-                  <span>Total paid: <b className="text-slate-800">{formatINR(ledger.total_paid)}</b></span>
+                  <span>{tr('kh.totalUdhar')}: <b className="text-slate-800">{formatINR(ledger.total_credit)}</b></span>
+                  <span>{tr('kh.totalPaid')}: <b className="text-slate-800">{formatINR(ledger.total_paid)}</b></span>
                 </div>
 
                 <div className="mt-4 grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
                   <button onClick={() => openForm('credit')} className="h-11 flex items-center justify-center gap-1.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer">
-                    <Plus className="w-4 h-4" /> Udhar Diya
+                    <Plus className="w-4 h-4" /> {tr('kh.gave')}
                   </button>
                   <button onClick={() => openForm('payment')} className="h-11 flex items-center justify-center gap-1.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer">
-                    <Minus className="w-4 h-4" /> Payment Mila
+                    <Minus className="w-4 h-4" /> {tr('kh.got')}
                   </button>
                   {ledger.balance > 0 && (
                     <button
                       onClick={() => openWhatsApp(selected.phone, paymentReminderMessage(selected.customer_name, ledger.balance, language))}
                       className="col-span-2 sm:col-span-1 h-11 flex items-center justify-center gap-1.5 px-3 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold cursor-pointer"
                     >
-                      <MessageCircle className="w-4 h-4" /> WhatsApp Reminder
+                      <MessageCircle className="w-4 h-4" /> {tr('kh.remind')}
                     </button>
                   )}
                 </div>
@@ -289,7 +294,7 @@ export const KhataTab: React.FC<KhataTabProps> = ({ onOpenVoice, onRefresh, refr
                   <form onSubmit={submitEntry} className="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className={`text-xs font-bold ${formType === 'credit' ? 'text-rose-700' : 'text-emerald-700'}`}>
-                        {formType === 'credit' ? 'New udhar entry' : 'New payment entry'}
+                        {formType === 'credit' ? tr('kh.newUdhar') : tr('kh.newPayment')}
                       </span>
                       <button type="button" onClick={() => setFormType(null)} aria-label="Close" className="text-slate-400 hover:text-slate-700 cursor-pointer">
                         <X className="w-4 h-4" />
@@ -302,20 +307,20 @@ export const KhataTab: React.FC<KhataTabProps> = ({ onOpenVoice, onRefresh, refr
                         min="1"
                         step="any"
                         inputMode="decimal"
-                        placeholder="Amount (₹)"
+                        placeholder={tr('kh.amount')}
                         value={amount}
                         onChange={(e) => setAmount(e.target.value)}
                         className="sm:w-36 h-11 px-3 rounded-lg border border-slate-300 text-sm focus:outline-none focus:border-indigo-500"
                       />
                       <input
                         type="text"
-                        placeholder={formType === 'credit' ? 'Note, e.g. 10 kurtis' : 'Note, e.g. UPI / cash'}
+                        placeholder={tr('kh.note')}
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
                         className="flex-1 h-11 px-3 rounded-lg border border-slate-300 text-sm focus:outline-none focus:border-indigo-500"
                       />
                       <button type="submit" disabled={saving} className="h-11 px-4 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold cursor-pointer disabled:opacity-60">
-                        {saving ? 'Saving...' : 'Save'}
+                        {saving ? tr('common.saving') : tr('common.save')}
                       </button>
                     </div>
                     {formError && <p className="text-[11px] text-rose-600">{formError}</p>}
@@ -325,22 +330,22 @@ export const KhataTab: React.FC<KhataTabProps> = ({ onOpenVoice, onRefresh, refr
 
               {/* Entries, newest first */}
               <div className="flex-1 divide-y divide-slate-100">
-                {ledger.entries.length === 0 && <p className="p-6 text-center text-xs text-slate-400">No khata entries yet for this customer.</p>}
+                {ledger.entries.length === 0 && <p className="p-6 text-center text-xs text-slate-400">{tr('kh.noEntries')}</p>}
                 {ledger.entries.map((e) => (
                   <div key={e.id} className="px-4 md:px-5 py-3 group">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-sm text-slate-800 line-clamp-2">{e.note || (e.entry_type === 'credit' ? 'Udhar' : 'Payment')}</p>
+                        <p className="text-sm text-slate-800 line-clamp-2">{e.note || (e.entry_type === 'credit' ? tr('kh.gave') : tr('kh.got'))}</p>
                         <p className="mt-0.5 text-[11px] text-slate-400 flex flex-wrap items-center gap-1.5">
                           {e.created_at.slice(0, 16)}
                           {e.source !== 'manual' && (
                             <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[9px] font-bold uppercase">
-                              {e.source === 'voice' ? '🎙 voice' : 'order'}
+                              {e.source === 'voice' ? `🎙 ${tr('kh.byVoice')}` : tr('kh.fromBill')}
                             </span>
                           )}
                           {e.signature && (
                             <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9px] font-bold uppercase flex items-center gap-0.5">
-                              <ShieldCheck className="w-3 h-3" /> voice-signed
+                              <ShieldCheck className="w-3 h-3" /> {tr('kh.signed')}
                             </span>
                           )}
                         </p>
@@ -350,7 +355,7 @@ export const KhataTab: React.FC<KhataTabProps> = ({ onOpenVoice, onRefresh, refr
                           {e.entry_type === 'credit' ? '+' : '−'}
                           {formatINR(e.amount)}
                         </p>
-                        <p className="text-[10px] text-slate-400">bal {formatINR(e.running_balance || 0)}</p>
+                        <p className="text-[10px] text-slate-400">{tr('kh.bal', { amt: formatINR(e.running_balance || 0) })}</p>
                       </div>
                       {!e.signature && (
                         <button
@@ -378,7 +383,7 @@ export const KhataTab: React.FC<KhataTabProps> = ({ onOpenVoice, onRefresh, refr
                               lang: language,
                             })
                           }
-                          aria-label="Share voice proof"
+                          aria-label={tr('kh.shareProof')}
                           className="shrink-0 w-10 h-10 rounded-xl border border-emerald-200 text-emerald-700 flex items-center justify-center cursor-pointer"
                         >
                           <Share2 className="w-4 h-4" />
